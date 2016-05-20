@@ -1,4 +1,5 @@
 #    Copyright 2014 Rackspace
+#    Copyright 2016 IBM Corp.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
@@ -52,6 +53,7 @@ class BaseRepositoryTest(base.OctaviaDBTestBase):
         self.hm_repo = repo.HealthMonitorRepository()
         self.sni_repo = repo.SNIRepository()
         self.amphora_repo = repo.AmphoraRepository()
+        self.distributor_repo = repo.DistributorRepository()
         self.amphora_health_repo = repo.AmphoraHealthRepository()
         self.vrrp_group_repo = repo.VRRPGroupRepository()
         self.l7policy_repo = repo.L7PolicyRepository()
@@ -93,11 +95,12 @@ class AllRepositoriesTest(base.OctaviaDBTestBase):
             load_balancer_id=self.load_balancer.id)
 
     def test_all_repos_has_correct_repos(self):
-        repo_attr_names = ('load_balancer', 'vip', 'health_monitor',
-                           'session_persistence', 'pool', 'member', 'listener',
-                           'listener_stats', 'amphora', 'sni',
-                           'amphorahealth', 'vrrpgroup', 'l7rule', 'l7policy',
-                           'quotas')
+        repo_attr_names = (
+            'load_balancer', 'vip', 'health_monitor', 'distributor',
+            'session_persistence', 'pool', 'member', 'listener',
+            'listener_stats', 'amphora', 'sni',
+            'amphorahealth', 'vrrpgroup', 'l7rule', 'l7policy',
+            'quotas')
         for repo_attr in repo_attr_names:
             single_repo = getattr(self.repos, repo_attr, None)
             message = ("Class Repositories should have %s instance"
@@ -2892,6 +2895,62 @@ class AmphoraRepositoryTest(BaseRepositoryTest):
 
         self.assertEqual(cert_expired_amphora.cert_expiration, expiration)
         self.assertEqual(cert_expired_amphora.id, amphora2.id)
+
+
+class DistributorRepositoryTest(BaseRepositoryTest):
+
+    def setUp(self):
+        super(DistributorRepositoryTest, self).setUp()
+        self.distributor = self.distributor_repo.create(
+            self.session, id=self.FAKE_UUID_1, compute_id=self.FAKE_UUID_2,
+            lb_network_ip=self.FAKE_IP, status=constants.DISTRIBUTOR_READY)
+
+    def create_distributor(self, distributor_id):
+        dist_ready = constants.DISTRIBUTOR_READY
+        distributor = self.distributor_repo.create(
+            self.session,
+            id=distributor_id,
+            compute_id=self.FAKE_UUID_4,
+            status=dist_ready,
+            lb_network_ip=self.FAKE_IP)
+        return distributor
+
+    def test_get(self):
+        distributor = self.create_distributor(self.FAKE_UUID_2)
+        new_distributor = self.distributor_repo.get(
+            self.session,
+            id=distributor.id)
+        self.assertIsInstance(new_distributor, models.Distributor)
+        self.assertEqual(distributor, new_distributor)
+
+    def test_create(self):
+        distributor = self.create_distributor(self.FAKE_UUID_2)
+        self.assertEqual(self.FAKE_UUID_2, distributor.id)
+        self.assertEqual(self.FAKE_UUID_4, distributor.compute_id)
+        self.assertEqual(constants.DISTRIBUTOR_READY, distributor.status)
+        self.assertEqual(self.FAKE_IP, distributor.lb_network_ip)
+
+    def test_update(self):
+        distributor = self.create_distributor(self.FAKE_UUID_2)
+        status_change = constants.DISTRIBUTOR_PENDING_UPDATE
+        self.distributor_repo.update(self.session, distributor.id,
+                                     status=status_change)
+        new_distributor = self.distributor_repo.get(self.session,
+                                                    id=distributor.id)
+        self.assertEqual(status_change, new_distributor.status)
+
+    def test_delete(self):
+        distributor = self.create_distributor(self.FAKE_UUID_2)
+        self.distributor_repo.delete(self.session, id=distributor.id)
+        self.assertIsNone(self.distributor_repo.get(self.session,
+                                                    id=distributor.id))
+
+    def test_get_distributor_by_id(self):
+        self.create_distributor(self.FAKE_UUID_2)
+        new_distributor = self.distributor_repo.get_distributor_by_id(
+            self.session, self.FAKE_UUID_2)
+        self.assertIsNotNone(new_distributor)
+        self.assertIsInstance(new_distributor, models.Distributor)
 
 
 class AmphoraHealthRepositoryTest(BaseRepositoryTest):

@@ -1,5 +1,6 @@
 # Copyright 2014 Rackspace
 # Copyright 2016 Blue Box, an IBM Company
+# Copyright 2016 IBM Corp.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
@@ -138,6 +139,7 @@ class Repositories(object):
         self.listener = ListenerRepository()
         self.listener_stats = ListenerStatisticsRepository()
         self.amphora = AmphoraRepository()
+        self.distributor = DistributorRepository()
         self.sni = SNIRepository()
         self.amphorahealth = AmphoraHealthRepository()
         self.vrrpgroup = VRRPGroupRepository()
@@ -987,6 +989,18 @@ class AmphoraHealthRepository(BaseRepository):
             amp.busy = True
 
         return amp.to_data_model()
+
+
+class DistributorRepository(BaseRepository):
+    model_class = models.Distributor
+
+    def get_distributor_by_id(self, session, id):
+        with session.begin(subtransactions=True):
+            distributor = session.query(models.Distributor).filter_by(
+                id=id).first()
+            if distributor is None:
+                return None
+            return distributor.to_data_model()
 
 
 class VRRPGroupRepository(BaseRepository):

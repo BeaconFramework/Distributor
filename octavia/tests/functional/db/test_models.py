@@ -1,4 +1,5 @@
 #    Copyright 2014 Rackspace
+#    Copyright 2016 IBM Corp.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
@@ -136,6 +137,14 @@ class ModelTestMixin(object):
                   'cert_busy': False}
         kwargs.update(overrides)
         return self._insert(session, models.Amphora, kwargs)
+
+    def create_distributor(self, session, **overrides):
+        kwargs = {'id': self.FAKE_UUID_1,
+                  'compute_id': self.FAKE_UUID_1,
+                  'lb_network_ip': self.FAKE_IP,
+                  'status': constants.DISTRIBUTOR_ACTIVE}
+        kwargs.update(overrides)
+        return self._insert(session, models.Distributor, kwargs)
 
     def create_amphora_health(self, session, **overrides):
         kwargs = {'amphora_id': self.FAKE_UUID_1,
@@ -610,6 +619,31 @@ class AmphoraModelTest(base.OctaviaDBTestBase, ModelTestMixin):
             id=amphora.id).first()
         self.assertIsNotNone(new_amphora.load_balancer)
         self.assertIsInstance(new_amphora.load_balancer, models.LoadBalancer)
+
+
+class DistributorModelTest(base.OctaviaDBTestBase, ModelTestMixin):
+
+    def setUp(self):
+        super(DistributorModelTest, self).setUp()
+
+    def test_create(self):
+        self.create_distributor(self.session)
+
+    def test_update(self):
+        distributor = self.create_distributor(self.session)
+        distributor.distributor_id = self.FAKE_UUID_2
+        new_distributor = self.session.query(models.Distributor).filter_by(
+            id=distributor.id).first()
+        self.assertEqual(self.FAKE_UUID_2, new_distributor.distributor_id)
+
+    def test_delete(self):
+        distributor = self.create_distributor(self.session)
+        with self.session.begin():
+            self.session.delete(distributor)
+            self.session.flush()
+        new_distributor = self.session.query(
+            models.Distributor).filter_by(id=distributor.id).first()
+        self.assertIsNone(new_distributor)
 
 
 class AmphoraHealthModelTest(base.OctaviaDBTestBase, ModelTestMixin):
@@ -1254,6 +1288,11 @@ class TestDataModelConversionTest(base.OctaviaDBTestBase, ModelTestMixin):
     def check_load_balancer_amphora_data_model(self, amphora):
         self.assertEqual(self.FAKE_UUID_1, amphora.amphora_id)
         self.assertEqual(self.FAKE_UUID_1, amphora.load_balancer_id)
+
+    def check_distributor_data_model(self, distributor):
+        self.assertEqual(self.FAKE_UUID_1, distributor.id)
+        self.assertEqual(self.FAKE_UUID_1, distributor.compute_id)
+        self.assertEqual(constants.ACTIVE, distributor.status)
 
 
 class TestDataModelManipulations(base.OctaviaDBTestBase, ModelTestMixin):

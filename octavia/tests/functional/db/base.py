@@ -52,6 +52,9 @@ class OctaviaDBTestBase(test_base.DbTestCase):
             session, constants.SUPPORTED_PROVISIONING_STATUSES,
             models.ProvisioningStatus)
         self._seed_lookup_table(
+            session, constants.SUPPORTED_DISTRIBUTOR_PROVISIONING_STATUSES,
+            models.DistributorProvisioningStatus)
+        self._seed_lookup_table(
             session, constants.SUPPORTED_HEALTH_MONITOR_TYPES,
             models.HealthMonitorType)
         self._seed_lookup_table(

@@ -1,5 +1,6 @@
 #    Copyright 2014 Rackspace
 #    Copyright 2016 Blue Box, an IBM Company
+#    Copyright 2016 IBM Corp.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
@@ -27,6 +28,12 @@ from octavia.db import base_models
 class ProvisioningStatus(base_models.BASE, base_models.LookupTableMixin):
 
     __tablename__ = "provisioning_status"
+
+
+class DistributorProvisioningStatus(base_models.BASE,
+                                    base_models.LookupTableMixin):
+
+    __tablename__ = "distributor_provisioning_status"
 
 
 class OperatingStatus(base_models.BASE, base_models.LookupTableMixin):
@@ -461,6 +468,20 @@ class Amphora(base_models.BASE, base_models.IdMixin):
     vrrp_interface = sa.Column(sa.String(16), nullable=True)
     vrrp_id = sa.Column(sa.Integer(), nullable=True)
     vrrp_priority = sa.Column(sa.Integer(), nullable=True)
+
+
+class Distributor(base_models.BASE, base_models.IdMixin):
+
+    __data_model__ = data_models.Distributor
+
+    __tablename__ = "distributor"
+
+    compute_id = sa.Column(sa.String(36), nullable=True)
+    lb_network_ip = sa.Column(sa.String(64), nullable=True)
+    status = sa.Column(
+        sa.String(36),
+        sa.ForeignKey("distributor_provisioning_status.name",
+                      name="fk_distributor_provisioning_status_name"))
 
 
 class AmphoraHealth(base_models.BASE):

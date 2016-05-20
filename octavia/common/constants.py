@@ -1,4 +1,5 @@
 # Copyright 2014 Rackspace
+# Copyright 2016 IBM Corp.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
@@ -173,6 +174,7 @@ AMPHORAE_NETWORK_CONFIG = 'amphorae_network_config'
 ADDED_PORTS = 'added_ports'
 PORTS = 'ports'
 MEMBER_PORTS = 'member_ports'
+
 LOADBALANCER_TOPOLOGY = 'topology'
 
 CERT_ROTATE_AMPHORA_FLOW = 'octavia-cert-rotate-amphora-flow'
@@ -200,6 +202,7 @@ DELETE_L7POLICY_FLOW = 'octavia-delete-l7policy-flow'
 DELETE_L7RULE_FLOW = 'octavia-delete-l7policy-flow'
 FAILOVER_AMPHORA_FLOW = 'octavia-failover-amphora-flow'
 LOADBALANCER_NETWORKING_SUBFLOW = 'octavia-new-loadbalancer-net-subflow'
+
 UPDATE_HEALTH_MONITOR_FLOW = 'octavia-update-health-monitor-flow'
 UPDATE_LISTENER_FLOW = 'octavia-update-listener-flow'
 UPDATE_LOADBALANCER_FLOW = 'octavia-update-loadbalancer-flow'
@@ -371,3 +374,41 @@ UBUNTU_AMP_NET_DIR_TEMPLATE = '/etc/netns/{netns}/network/interfaces.d/'
 RH_AMP_NET_DIR_TEMPLATE = '/etc/netns/{netns}/sysconfig/network-scripts/'
 UBUNTU = 'ubuntu'
 CENTOS = 'centos'
+# Distributor related constants
+DISTRIBUTOR = 'distributor'
+DISTRIBUTOR_ID = 'distributor_id'
+DISTRIBUTOR_DATA = 'distributor_data'
+DISTRIBUTOR_NETWORK_CONFIG = 'distributor_network_config'
+DISTRIBUTOR_NETWORKING_SUBFLOW = 'octavia-new-distributor-net-subflow'
+CREATE_DISTRIBUTOR_FLOW = 'octavia-create-distributor-flow'
+WAIT_FOR_DISTRIBUTOR = 'wait-for-distributor'
+RELOAD_LB_BEFORE_PLUG_VIP_TO_DISTRIBUTOR = (
+    'reload-lb-before-plug-vip-to-distributor')
+DISTRIBUTOR_AGENT_CONF_TEMPLATE = 'distributor_agent_conf.template'
+DISTRIBUTOR_AGENT_API_TEMPLATES = '/templates'
+
+DISTRIBUTOR_BOOTING = 'DISTRIBUTOR_BOOTING'
+
+# Distributor has been allocated
+DISTRIBUTOR_ALLOCATED = 'DISTRIBUTOR_ALLOCATED'
+# Distributor is ready
+DISTRIBUTOR_READY = 'DISTRIBUTOR_READY'
+DISTRIBUTOR_ACTIVE = 'DISTRIBUTOR_ACTIVE'
+DISTRIBUTOR_PENDING_DELETE = 'DISTRIBUTOR_PENDING_DELETE'
+DISTRIBUTOR_PENDING_UPDATE = 'DISTRIBUTOR_PENDING_UPDATE'
+DISTRIBUTOR_PENDING_CREATE = 'DISTRIBUTOR_PENDING_CREATE'
+DISTRIBUTOR_DELETED = 'DISTRIBUTOR_DELETED'
+DISTRIBUTOR_ERROR = 'DISTRIBUTOR_ERROR'
+SUPPORTED_DISTRIBUTOR_PROVISIONING_STATUSES = (DISTRIBUTOR_ACTIVE,
+                                               DISTRIBUTOR_ALLOCATED,
+                                               DISTRIBUTOR_BOOTING,
+                                               DISTRIBUTOR_READY,
+                                               DISTRIBUTOR_DELETED,
+                                               DISTRIBUTOR_ERROR,
+                                               DISTRIBUTOR_PENDING_CREATE,
+                                               DISTRIBUTOR_PENDING_DELETE,
+                                               DISTRIBUTOR_PENDING_UPDATE)
+
+SUPPORTED_DISTRIBUTOR_STATUSES = (DISTRIBUTOR_ALLOCATED, DISTRIBUTOR_BOOTING,
+                                  DISTRIBUTOR_READY, DISTRIBUTOR_DELETED,
+                                  DISTRIBUTOR_PENDING_DELETE)

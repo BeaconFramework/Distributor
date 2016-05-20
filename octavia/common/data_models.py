@@ -1,5 +1,6 @@
 #    Copyright (c) 2014 Rackspace
 #    Copyright (c) 2016 Blue Box, an IBM Company
+#    Copyright 2016 IBM Corp.
 #    All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -479,6 +480,16 @@ class Amphora(BaseDataModel):
             if amphora.id == self.id:
                 self.load_balancer.amphorae.remove(amphora)
                 break
+
+
+class Distributor(BaseDataModel):
+
+    def __init__(self, id=None, compute_id=None, lb_network_ip=None,
+                 status=None):
+        self.id = id
+        self.compute_id = compute_id
+        self.lb_network_ip = lb_network_ip
+        self.status = status
 
 
 class AmphoraHealth(BaseDataModel):
