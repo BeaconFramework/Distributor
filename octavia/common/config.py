@@ -201,6 +201,12 @@ haproxy_amphora_opts = [
                 help=_("If False, use sysvinit.")),
 ]
 
+distributor_opts = [
+    # REST server
+    cfg.PortOpt('bind_port', default=9442,
+                help=_("The port to bind to")),
+]
+
 controller_worker_opts = [
     cfg.IntOpt('amp_active_retries',
                default=10,
@@ -457,6 +463,7 @@ quota_opts = [
 # Register the configuration options
 cfg.CONF.register_opts(core_opts)
 cfg.CONF.register_opts(amphora_agent_opts, group='amphora_agent')
+cfg.CONF.register_opts(distributor_opts, group='distributor')
 cfg.CONF.register_opts(networking_opts, group='networking')
 cfg.CONF.register_opts(oslo_messaging_opts, group='oslo_messaging')
 cfg.CONF.register_opts(haproxy_amphora_opts, group='haproxy_amphora')
