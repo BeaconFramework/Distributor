@@ -63,7 +63,8 @@ class BaseDataModel(object):
         # objects.
         if obj.__class__.__name__ in ['Member', 'Pool', 'LoadBalancer',
                                       'Listener', 'Amphora', 'L7Policy',
-                                      'L7Rule']:
+                                      'L7Rule', 'AmphoraCluster',
+                                      'Distributor']:
             return obj.__class__.__name__ + obj.id
         elif obj.__class__.__name__ in ['SessionPersistence', 'HealthMonitor']:
             return obj.__class__.__name__ + obj.pool_id
@@ -380,8 +381,8 @@ class LoadBalancer(BaseDataModel):
     def __init__(self, id=None, project_id=None, name=None, description=None,
                  provisioning_status=None, operating_status=None, enabled=None,
                  topology=None, vip=None, listeners=None, amphorae=None,
-                 pools=None, vrrp_group=None, server_group_id=None,
-                 created_at=None, updated_at=None):
+                 pools=None, vrrp_group=None, amphora_cluster=None,
+                 server_group_id=None, created_at=None, updated_at=None):
 
         self.id = id
         self.project_id = project_id
@@ -399,6 +400,7 @@ class LoadBalancer(BaseDataModel):
         self.server_group_id = server_group_id
         self.created_at = created_at
         self.updated_at = updated_at
+        self.amphora_cluster = amphora_cluster
 
 
 class VRRPGroup(BaseDataModel):
@@ -485,11 +487,30 @@ class Amphora(BaseDataModel):
 class Distributor(BaseDataModel):
 
     def __init__(self, id=None, compute_id=None, lb_network_ip=None,
-                 status=None):
+                 status=None, amphora_clusters=None):
         self.id = id
         self.compute_id = compute_id
         self.lb_network_ip = lb_network_ip
         self.status = status
+        self.amphora_clusters = amphora_clusters or []
+
+
+class AmphoraCluster(BaseDataModel):
+
+    def __init__(self, id=None, cluster_name=None,
+                 desired_capacity=None, load_balancer_id=None,
+                 distributor_id=None, provisioning_status=None,
+                 operating_status=None, load_balancer=None,
+                 distributor=None):
+        self.id = id
+        self.cluster_name = cluster_name
+        self.desired_capacity = desired_capacity
+        self.load_balancer_id = load_balancer_id
+        self.distributor_id = distributor_id
+        self.provisioning_status = provisioning_status
+        self.operating_status = operating_status
+        self.load_balancer = load_balancer
+        self.distributor = distributor
 
 
 class AmphoraHealth(BaseDataModel):

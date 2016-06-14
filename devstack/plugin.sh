@@ -384,7 +384,7 @@ function octavia_start {
             glance image-tag-update ${OCTAVIA_DISTRIBUTOR_IMAGE_ID} ${OCTAVIA_DISTRIBUTOR_IMAGE_TAG}
         fi
     fi
-
+    
     iniset $OCTAVIA_CONF active_active_cluster distributor_image_tag ${OCTAVIA_DISTRIBUTOR_IMAGE_TAG}
 
     if [ $OCTAVIA_NODE == 'main' ] || [ $OCTAVIA_NODE == 'standalone' ] ; then

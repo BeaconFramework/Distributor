@@ -235,7 +235,8 @@ active_active_cluster_opts = [
                       'owner ID.  This is a recommended security setting.')),
     cfg.StrOpt('distributor_driver',
                default='distributor_noop_driver',
-               help=_('Name of the distributor driver to use')),
+               help=_('Name of the distributor driver to use'
+                       'traffic distributor node.'))
 ]
 
 controller_worker_opts = [

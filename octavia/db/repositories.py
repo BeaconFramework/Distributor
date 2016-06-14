@@ -140,6 +140,7 @@ class Repositories(object):
         self.listener_stats = ListenerStatisticsRepository()
         self.amphora = AmphoraRepository()
         self.distributor = DistributorRepository()
+        self.amphora_cluster = AmphoraClusterRepository()
         self.sni = SNIRepository()
         self.amphorahealth = AmphoraHealthRepository()
         self.vrrpgroup = VRRPGroupRepository()
@@ -614,6 +615,34 @@ class Repositories(object):
         session.expire_all()
         return self.load_balancer.get(session, id=lb_dm.id)
 
+        def create_amphora_cluster_on_load_balancer(self, session,
+                                                    load_balancer_id,
+                                                    cluster_dict=None):
+            """Inserts an Amphora_cluster into the database.
+
+            :param session: A Sql Alchemy database session.
+            :param load_balancer_id: id of the load_balancer the cluster
+            will be referenced by
+            :param cluster_dict: Dictionary representation of a cluster
+            :return: octavia.common.data_models.AmphoraCluster
+            """
+
+            if not cluster_dict:
+                cluster_dict = {}
+
+                with session.begin(subtransactions=True):
+                    if not cluster_dict.get('id'):
+                        cluster_dict['load_balancer_id'] = load_balancer_id
+                        # try to use same id as load_balancer
+                        if not self.amphora_cluster.exists(session,
+                                                           load_balancer_id):
+                            cluster_dict['id'] = load_balancer_id
+                        else:
+                            cluster_dict['id'] = uuidutils.generate_uuid()
+                    db_cluster = models.AmphoraCluster(**cluster_dict)
+                    session.add(db_cluster)
+                return db_cluster.__data_model__
+
 
 class LoadBalancerRepository(BaseRepository):
     model_class = models.LoadBalancer
@@ -994,13 +1023,62 @@ class AmphoraHealthRepository(BaseRepository):
 class DistributorRepository(BaseRepository):
     model_class = models.Distributor
 
-    def get_distributor_by_id(self, session, id):
+    def get_distributor_by_id(self, session, distributor_id):
         with session.begin(subtransactions=True):
             distributor = session.query(models.Distributor).filter_by(
-                id=id).first()
+                id=distributor_id).first()
+            if distributor is None:
+                return None
+        return distributor.to_data_model()
+
+    def get_shared_ready_distributor(self, session):
+        with session.begin(subtransactions=True):
+            distributor = session.query(models.Distributor).filter_by(
+                status=consts.DISTRIBUTOR_READY).first()
             if distributor is None:
                 return None
             return distributor.to_data_model()
+
+
+class AmphoraClusterRepository(BaseRepository):
+    model_class = models.AmphoraCluster
+
+    def associate(self, session, distributor_id, load_balancer_id):
+        """Associates an amphora cluster with a distributor.
+
+        :param session: A Sql Alchemy database session.
+        :param distributor_id: The distributor id to associate
+        :param load_balancer_id: The load_balancer id to associate
+        """
+
+        with session.begin(subtransactions=True):
+            distributor = session.query(models.Distributor).filter_by(
+                id=distributor_id).first()
+            amphora_cluster = session.query(self.model_class).filter_by(
+                load_balancer_id=load_balancer_id).first()
+            distributor.amphora_clusters.append(amphora_cluster)
+            amphora_cluster.distributor_id = distributor_id
+            if amphora_cluster is None:
+                return None
+        return amphora_cluster.to_data_model()
+
+    def update(self, session, load_balancer_id, **model_kwargs):
+        """Updates an amphora_cluster in DB."""
+
+        with session.begin(subtransactions=True):
+            session.query(self.model_class).filter_by(
+                load_balancer_id=load_balancer_id).first().update(
+                model_kwargs)
+
+    def delete(self, session, load_balancer_id):
+        """Deletes an amphora_cluster from DB."""
+
+        with session.begin(subtransactions=True):
+            amphora_cluster = session.query(self.model_class).filter_by(
+                load_balancer_id=load_balancer_id).first()
+        if amphora_cluster:
+            session.delete(amphora_cluster)
+            session.flush()
 
 
 class VRRPGroupRepository(BaseRepository):

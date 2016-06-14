@@ -176,6 +176,7 @@ PORTS = 'ports'
 MEMBER_PORTS = 'member_ports'
 
 LOADBALANCER_TOPOLOGY = 'topology'
+AMPHORA_CLUSTER = 'amphora_cluster'
 
 CERT_ROTATE_AMPHORA_FLOW = 'octavia-cert-rotate-amphora-flow'
 CREATE_AMPHORA_FLOW = 'octavia-create-amphora-flow'
@@ -215,8 +216,14 @@ POST_MAP_AMP_TO_LB_SUBFLOW = 'octavia-post-map-amp-to-lb-subflow'
 CREATE_AMP_FOR_LB_SUBFLOW = 'octavia-create-amp-for-lb-subflow'
 CREATE_AMP_CLUSTER_FOR_LB_SUBFLOW = (
     'octavia-create-amp-cluster_manager-for-lb-subflow')
+FINALIZE_AMP_CLUSTER_FOR_LB_SUBFLOW = (
+    'octavia-finalize-amp-cluster_manager-for-lb-subflow'
+)
 CREATE_AMP_CLUSTER_MANAGER = (
     'octavia-create-amp-cluster-manager'
+)
+PRE_CREATE_AMPHORAE_PER_CLUSTER_FLOW = (
+    'octavia-precreate-amp-per-cluster-flow'
 )
 GET_AMPHORA_FOR_LB_SUBFLOW = 'octavia-get-amphora-for-lb-subflow'
 POST_LB_AMP_ASSOCIATION_SUBFLOW = (

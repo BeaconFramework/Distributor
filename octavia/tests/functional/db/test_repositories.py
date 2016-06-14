@@ -54,6 +54,7 @@ class BaseRepositoryTest(base.OctaviaDBTestBase):
         self.sni_repo = repo.SNIRepository()
         self.amphora_repo = repo.AmphoraRepository()
         self.distributor_repo = repo.DistributorRepository()
+        self.amphora_cluster_repo = repo.AmphoraClusterRepository()
         self.amphora_health_repo = repo.AmphoraHealthRepository()
         self.vrrp_group_repo = repo.VRRPGroupRepository()
         self.l7policy_repo = repo.L7PolicyRepository()
@@ -98,7 +99,7 @@ class AllRepositoriesTest(base.OctaviaDBTestBase):
         repo_attr_names = (
             'load_balancer', 'vip', 'health_monitor', 'distributor',
             'session_persistence', 'pool', 'member', 'listener',
-            'listener_stats', 'amphora', 'sni',
+            'listener_stats', 'amphora', 'sni', 'amphora_cluster',
             'amphorahealth', 'vrrpgroup', 'l7rule', 'l7policy',
             'quotas')
         for repo_attr in repo_attr_names:
@@ -130,7 +131,8 @@ class AllRepositoriesTest(base.OctaviaDBTestBase):
               'vrrp_group': None,
               'server_group_id': uuidutils.generate_uuid(),
               'project_id': uuidutils.generate_uuid(),
-              'id': uuidutils.generate_uuid()}
+              'id': uuidutils.generate_uuid(),
+              'amphora_cluster': None}
         vip = {'ip_address': '10.0.0.1',
                'port_id': uuidutils.generate_uuid(),
                'subnet_id': uuidutils.generate_uuid(),
@@ -2951,6 +2953,45 @@ class DistributorRepositoryTest(BaseRepositoryTest):
             self.session, self.FAKE_UUID_2)
         self.assertIsNotNone(new_distributor)
         self.assertIsInstance(new_distributor, models.Distributor)
+
+    def test_get_shared_ready_distributor(self):
+        self.create_distributor(self.FAKE_UUID_2)
+        new_distributor = self.distributor_repo.get_shared_ready_distributor(
+            self.session)
+        self.assertIsNotNone(new_distributor)
+        self.assertIsInstance(new_distributor, models.Distributor)
+
+
+class AmphoraClusterRepositoryTest(BaseRepositoryTest):
+
+    def setUp(self):
+        super(AmphoraClusterRepositoryTest, self).setUp()
+        self.distributor_repo.create(self.session, id=self.FAKE_UUID_3,
+                                     compute_id=self.FAKE_UUID_4,
+                                     lb_network_ip=self.FAKE_IP)
+        self.lb_repo.create(self.session, id=self.FAKE_UUID_2,
+                            project_id=self.FAKE_UUID_2, name="lb_name",
+                            description="lb_description",
+                            provisioning_status=constants.ACTIVE,
+                            operating_status=constants.ONLINE,
+                            enabled=True)
+        self.cluster = self.amphora_cluster_repo.create(
+            self.session, id=self.FAKE_UUID_1, cluster_name='cluster_test',
+            desired_capacity=10,
+            load_balancer_id=self.FAKE_UUID_2,
+            distributor_id=self.FAKE_UUID_3
+        )
+
+    def test_create(self):
+        self.assertEqual(self.FAKE_UUID_1, self.cluster.id)
+        self.assertEqual(self.FAKE_UUID_2, self.cluster.load_balancer_id)
+        self.assertEqual(self.FAKE_UUID_3, self.cluster.distributor_id)
+
+    def test_delete(self):
+        self.amphora_cluster_repo.delete(self.session,
+                                         load_balancer_id=self.FAKE_UUID_2)
+        self.assertIsNone(self.amphora_cluster_repo.get(self.session,
+                                                        id=self.FAKE_UUID_1))
 
 
 class AmphoraHealthRepositoryTest(BaseRepositoryTest):

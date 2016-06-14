@@ -408,7 +408,8 @@ class TestControllerWorker(base.TestCase):
         cw.create_load_balancer(LB_ID)
 
         mock_get_create_load_balancer_flow.assert_called_with(
-            topology=constants.TOPOLOGY_SINGLE, listeners=[])
+            topology=constants.TOPOLOGY_SINGLE, listeners=[],
+            amphora_cluster_flows=None)
         mock_taskflow_load.assert_called_with(
             mock_get_create_load_balancer_flow.return_value, store=store)
         mock_eng.run.assert_any_call()
@@ -449,7 +450,8 @@ class TestControllerWorker(base.TestCase):
         cw.create_load_balancer(LB_ID)
 
         mock_get_create_load_balancer_flow.assert_called_with(
-            topology=constants.TOPOLOGY_ACTIVE_STANDBY, listeners=[])
+            topology=constants.TOPOLOGY_ACTIVE_STANDBY, listeners=[],
+            amphora_cluster_flows=None)
         mock_taskflow_load.assert_called_with(
             mock_get_create_load_balancer_flow.return_value, store=store)
         mock_eng.run.assert_any_call()
@@ -492,7 +494,8 @@ class TestControllerWorker(base.TestCase):
         # mock_create_single_topology.assert_called_once()
         # mock_create_active_standby_topology.assert_not_called()
         mock_get_create_load_balancer_flow.assert_called_with(
-            topology=constants.TOPOLOGY_SINGLE, listeners=lb.listeners)
+            topology=constants.TOPOLOGY_SINGLE, listeners=lb.listeners,
+            amphora_cluster_flows=None)
         mock_taskflow_load.assert_called_with(
             mock_get_create_load_balancer_flow.return_value, store=store)
         mock_eng.run.assert_any_call()
@@ -541,7 +544,8 @@ class TestControllerWorker(base.TestCase):
         # mock_create_single_topology.assert_not_called()
         # mock_create_active_standby_topology.assert_called_once()
         mock_get_create_load_balancer_flow.assert_called_with(
-            topology=constants.TOPOLOGY_ACTIVE_STANDBY, listeners=lb.listeners)
+            topology=constants.TOPOLOGY_ACTIVE_STANDBY, listeners=lb.listeners,
+            amphora_cluster_flows=None)
         mock_taskflow_load.assert_called_with(
             mock_get_create_load_balancer_flow.return_value, store=store)
         mock_eng.run.assert_any_call()

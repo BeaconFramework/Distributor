@@ -484,6 +484,52 @@ class Distributor(base_models.BASE, base_models.IdMixin):
                       name="fk_distributor_provisioning_status_name"))
 
 
+class AmphoraCluster(base_models.BASE):
+
+    __data_model__ = data_models.AmphoraCluster
+
+    __tablename__ = "amphora_cluster"
+
+    id = sa.Column(sa.String(36), nullable=False, primary_key=True,
+                   autoincrement=False)
+    cluster_name = sa.Column(
+        sa.String(36),
+        nullable=True,
+        doc="prefix-name for amphorae in cluster")
+    desired_capacity = sa.Column(
+        sa.Integer(),
+        nullable=True,
+        doc="Desired number of machines in cluster")
+    load_balancer_id = sa.Column(
+        sa.String(36),
+        sa.ForeignKey("load_balancer.id",
+                      name="fk_amphora_cluster_load_balancer_id"),
+        nullable=True)
+    distributor_id = sa.Column(
+        sa.String(36),
+        sa.ForeignKey("distributor.id",
+                      name="fk_amphora_cluster_distributor_id"),
+        nullable=True)
+    provisioning_status = sa.Column(
+        sa.String(16),
+        sa.ForeignKey("provisioning_status.name",
+                      name="fk_amphora_cluster_provisioning_status_name"),
+        nullable=True)
+    operating_status = sa.Column(
+        sa.String(16),
+        sa.ForeignKey("operating_status.name",
+                      name="fk_amphora_cluster_operating_status_name"),
+        nullable=True)
+    load_balancer = orm.relationship("LoadBalancer", uselist=False,
+                                     backref=orm.backref("amphora_cluster",
+                                                         uselist=False,
+                                                         cascade="delete"))
+
+    distributor = orm.relationship("Distributor", uselist=False,
+                                   backref=orm.backref("amphora_clusters",
+                                                       uselist=True))
+
+
 class AmphoraHealth(base_models.BASE):
     __data_model__ = data_models.AmphoraHealth
     __tablename__ = "amphora_health"

@@ -45,7 +45,8 @@ class LoadBalancerFlows(object):
         self.pool_flows = pool_flows.PoolFlows()
         self.member_flows = member_flows.MemberFlows()
 
-    def get_create_load_balancer_flow(self, topology, listeners=None):
+    def get_create_load_balancer_flow(self, topology, listeners=None,
+                                      amphora_cluster_flows=None):
         """Creates a conditional graph flow that allocates a loadbalancer to
 
         two spare amphorae.
@@ -62,6 +63,11 @@ class LoadBalancerFlows(object):
             lb_create_flow.add(*self._create_active_standby_topology())
         elif topology == constants.TOPOLOGY_SINGLE:
             lb_create_flow.add(*self._create_single_topology())
+        elif topology == constants.TOPOLOGY_CLUSTER:
+            lb_create_flow.add(
+                amphora_cluster_flows.get_amphora_cluster_for_lb_subflow())
+            lb_create_flow.add(
+                amphora_cluster_flows.get_post_cluster_for_lb_assoc_flow())
         else:
             LOG.error(_LE("Unknown topology: %s.  Unable to build load "
                           "balancer."), topology)

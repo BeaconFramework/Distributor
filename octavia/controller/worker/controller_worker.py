@@ -17,6 +17,7 @@ import logging
 
 from octavia.common import base_taskflow
 from octavia.common import constants
+from octavia.controller.worker.flows import amphora_cluster_flows
 from octavia.controller.worker.flows import amphora_flows
 from octavia.controller.worker.flows import health_monitor_flows
 from octavia.controller.worker.flows import l7policy_flows
@@ -49,6 +50,7 @@ class ControllerWorker(base_taskflow.BaseTaskFlowEngine):
         self._pool_flows = pool_flows.PoolFlows()
         self._l7policy_flows = l7policy_flows.L7PolicyFlows()
         self._l7rule_flows = l7rule_flows.L7RuleFlows()
+        self._amphora_cluster_flows = None
 
         self._amphora_repo = repo.AmphoraRepository()
         self._health_mon_repo = repo.HealthMonitorRepository()
@@ -70,6 +72,11 @@ class ControllerWorker(base_taskflow.BaseTaskFlowEngine):
             constants.CREATE_AMP_FOR_LB_SUBFLOW + '-' +
             constants.GENERATE_SERVER_PEM,
             constants.GENERATE_SERVER_PEM_TASK)
+
+        self._topology = CONF.controller_worker.loadbalancer_topology
+        if self._topology == constants.TOPOLOGY_CLUSTER:
+            self._amphora_cluster_flows = (
+                amphora_cluster_flows.AmphoraClusterFlows())
 
         super(ControllerWorker, self).__init__()
 
@@ -271,7 +278,8 @@ class ControllerWorker(base_taskflow.BaseTaskFlowEngine):
 
         lb = self._lb_repo.get(db_apis.get_session(), id=load_balancer_id)
         create_lb_flow = self._lb_flows.get_create_load_balancer_flow(
-            topology=topology, listeners=lb.listeners)
+            topology=topology, listeners=lb.listeners,
+            amphora_cluster_flows=self._amphora_cluster_flows)
 
         create_lb_tf = self._taskflow_load(create_lb_flow, store=store)
         with tf_logging.DynamicLoggingListener(
