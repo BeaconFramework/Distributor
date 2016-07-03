@@ -224,15 +224,15 @@ active_active_cluster_opts = [
                       'Use this option to be able to update the image '
                       'without reconfiguring Octavia. '
                       'Ignored if amp_image_id is defined.')),
-    cfg.StrOpt('distributor_image_id',
-               default='',
-               deprecated_for_removal=True,
-               deprecated_reason='Superseded by distributor_image_id option.',
-               help=_('Glance image id for the Distributor image to boot')),
     cfg.StrOpt('distributor_image_owner_id',
                default='',
                help=_('Restrict glance image selection to a specific '
                       'owner ID.  This is a recommended security setting.')),
+    cfg.StrOpt('distributor_image_id',
+               default='',
+               deprecated_for_removal=True,
+               deprecated_reason='Superseded by amp_image_tag option.',
+               help=_('Glance image id for the image to boot')),
     cfg.StrOpt('distributor_driver',
                default='distributor_noop_driver',
                help=_('Name of the distributor driver to use'

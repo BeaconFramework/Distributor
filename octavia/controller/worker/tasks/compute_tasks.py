@@ -26,6 +26,7 @@ from octavia.amphorae.backends.agent import agent_jinja_cfg
 from octavia.common import constants
 from octavia.common import exceptions
 from octavia.common.jinja import user_data_jinja_cfg
+from octavia.distributor.backend.agent import distributor_jinja_cfg
 from octavia.i18n import _LE, _LW
 
 CONF = cfg.CONF
@@ -76,7 +77,7 @@ class ComputeCreate(BaseComputeTask):
 
             compute_id = self.compute.build(
                 name="amphora-" + amphora_id,
-                amphora_flavor=CONF.controller_worker.amp_flavor_id,
+                comp_flavor=CONF.controller_worker.amp_flavor_id,
                 image_id=CONF.controller_worker.amp_image_id,
                 image_tag=CONF.controller_worker.amp_image_tag,
                 image_owner=CONF.controller_worker.amp_image_owner_id,
@@ -112,6 +113,95 @@ class ComputeCreate(BaseComputeTask):
             self.compute.delete(compute_id)
         except Exception:
             LOG.exception(_LE("Reverting compute create failed"))
+
+
+class DistributorComputeCreate(BaseComputeTask):
+    """Create the compute instance for a new distributor."""
+
+    def execute(self, distributor_id, ports=None, config_drive_files=None):
+        """Create a distributor
+
+        :returns: a distributor
+        """
+        ports = ports or []
+        config_drive_files = config_drive_files or {}
+        LOG.debug("Compute create execute for distributor with id %s",
+                  distributor_id)
+
+        try:
+            agent_cfg = distributor_jinja_cfg.DistributorJinjaTemplater()
+            config_drive_files['/etc/octavia/distributor-agent.conf'] = (
+                agent_cfg.build_agent_config(distributor_id))
+            compute_id = self.compute.build(
+                name="distributor-" + distributor_id,
+                comp_flavor=CONF.active_active_cluster.distributor_flavor_id,
+                image_id=CONF.active_active_cluster.distributor_image_id,
+                image_tag=CONF.active_active_cluster.distributor_image_tag,
+                key_name=CONF.controller_worker.amp_ssh_key_name,
+                sec_groups=CONF.controller_worker.amp_secgroup_list,
+                network_ids=CONF.controller_worker.amp_boot_network_list,
+                port_ids=[port.id for port in ports],
+                config_drive_files=config_drive_files)
+
+#            LOG.debug("Server created with id: %s for distributor id: %s",
+#                      (compute_id, distributor_id))
+            return compute_id
+
+        except Exception:
+            LOG.exception(_LE("Compute create for distributor id: %s failed"),
+                          distributor_id)
+            raise
+
+    def revert(self, result, distributor_id, *args, **kwargs):
+        """This method will revert the creation of the
+
+        distributor. So it will just delete it in this flow
+        """
+        if isinstance(result, failure.Failure):
+            return
+        compute_id = result
+        LOG.warning(_LW("Reverting compute "
+                        "create, distributor %s "),
+                    distributor_id)
+        try:
+            self.compute.delete(compute_id)
+        except Exception:
+            LOG.exception(_LE("Reverting compute create failed"))
+
+
+class CertDistributorComputeCreate(DistributorComputeCreate):
+    def execute(self, distributor_id, server_pem, ports=None):
+        """Create an distributor
+
+        :returns: a distributor
+        """
+
+        # load client certificate
+        with open(CONF.controller_worker.client_ca, 'r') as client_ca:
+            ca = client_ca.read()
+        config_drive_files = {
+            '/etc/octavia/certs/server.pem': server_pem,
+            '/etc/octavia/certs/client_ca.pem': ca}
+        return super(CertDistributorComputeCreate, self).execute(
+            distributor_id, ports=ports,
+            config_drive_files=config_drive_files)
+
+
+class DistributorComputeWait(BaseComputeTask):
+    """Wait for the compute driver to mark the distributor active."""
+
+    def execute(self, compute_id):
+        """Wait for the compute driver to mark the distributor active
+
+        :raises: Generic exception if the distributor is not active
+        :returns: An amphora object
+        """
+        time.sleep(CONF.controller_worker.amp_active_wait_sec)
+        distributor = self.compute.get_distributor(compute_id)
+        if distributor.status == constants.DISTRIBUTOR_ACTIVE:
+            return distributor
+
+        raise exceptions.ComputeWaitTimeoutException()
 
 
 class CertComputeCreate(ComputeCreate):

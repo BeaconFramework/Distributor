@@ -92,17 +92,18 @@ class VirtualMachineManager(compute_base.ComputeBase):
         self.manager = self._nova_client.servers
         self.server_groups = self._nova_client.server_groups
 
-    def build(self, name="amphora_name", amphora_flavor=None,
+    def build(self, name="compute_name", comp_flavor=None,
               image_id=None, image_tag=None, image_owner=None,
               key_name=None, sec_groups=None, network_ids=None,
               port_ids=None, config_drive_files=None, user_data=None,
               server_group_id=None):
         '''Create a new virtual machine.
 
-        :param name: optional name for amphora
-        :param amphora_flavor: image flavor for virtual machine
+        :param name: optional name for amphora/distributor
+        :param comp_flavor: image flavor for virtual machine
         :param image_id: image ID for virtual machine
         :param image_tag: image tag for virtual machine
+        :param image_owner: owner of the base image for the instance
         :param key_name: keypair to add to the virtual machine
         :param sec_groups: Security group IDs for virtual machine
         :param network_ids: Network IDs to include on virtual machine
@@ -119,7 +120,7 @@ class VirtualMachineManager(compute_base.ComputeBase):
         for anti_affinity feature
 
         :raises ComputeBuildException: if nova failed to build virtual machine
-        :returns: UUID of amphora
+        :returns: UUID of compute node
         '''
 
         try:
@@ -144,8 +145,8 @@ class VirtualMachineManager(compute_base.ComputeBase):
                      for i in range(CONF.nova.random_amphora_name_length - 1)]
                 ))
 
-            amphora = self.manager.create(
-                name=name, image=image_id, flavor=amphora_flavor,
+            comp_node = self.manager.create(
+                name=name, image=image_id, flavor=comp_flavor,
                 key_name=key_name, security_groups=sec_groups,
                 nics=nics,
                 files=config_drive_files,
@@ -155,7 +156,7 @@ class VirtualMachineManager(compute_base.ComputeBase):
                 availability_zone=CONF.nova.availability_zone
             )
 
-            return amphora.id
+            return comp_node.id
         except Exception:
             LOG.exception(_LE("Error building nova virtual machine."))
             raise exceptions.ComputeBuildException()
@@ -183,6 +184,21 @@ class VirtualMachineManager(compute_base.ComputeBase):
         try:
             amphora = self.get_amphora(compute_id)
             if amphora and amphora.status == 'ACTIVE':
+                return constants.UP
+        except Exception:
+            LOG.exception(_LE("Error retrieving nova virtual machine status."))
+            raise exceptions.ComputeStatusException()
+        return constants.DOWN
+
+    def distributor_status(self, compute_id):
+        '''Retrieve the status of a virtual machine.
+
+        :param compute_id: virtual machine UUID
+        :returns: constant of distributor status
+        '''
+        try:
+            distributor = self.get_distributor(compute_id)
+            if distributor and distributor.status == 'DISTRIBUTOR_ACTIVE':
                 return constants.UP
         except Exception:
             LOG.exception(_LE("Error retrieving nova virtual machine status."))
@@ -224,8 +240,56 @@ class VirtualMachineManager(compute_base.ComputeBase):
         except Exception:
             LOG.debug('Extracting virtual interfaces through nova '
                       'os-interfaces extension failed.')
-
         response = models.Amphora(
+            compute_id=nova_response.id,
+            status=nova_response.status,
+            lb_network_ip=lb_network_ip
+        )
+        return response
+
+    def get_distributor(self, distributor_id):
+        """Retrieve the information in nova of a virtual machine.
+
+        :param distributor_id: virtual machine UUID
+        :returns: a distributor object
+        """
+
+        # utilize nova client ServerManager 'get' method to retrieve info
+        LOG.debug("get_distributor --> Compute %s, distributor_id %s",
+                  self.__class__.__name__, distributor_id)
+        try:
+            distributor = self.manager.get(distributor_id)
+        except Exception:
+            LOG.exception(_LE("Error retrieving nova virtual machine."))
+            raise exceptions.ComputeGetException()
+        return self._translate_distributor(distributor)
+
+    def _translate_distributor(self, nova_response):
+        """Convert a nova virtual machine into a distributor object.
+
+        :param nova_response: JSON response from nova
+        :returns: a distributor object
+        """
+
+        lb_network_ip = None
+        try:
+            inf_list = nova_response.interface_list()
+            for interface in inf_list:
+                net_id = getattr(interface, 'net_id')
+                if net_id in CONF.controller_worker.amp_boot_network_list:
+                    lb_network_ip = getattr(
+                        interface, 'fixed_ips')[0]['ip_address']
+                    break
+                elif net_id == CONF.controller_worker.amp_network:
+                    # TODO(ptoohill) deprecated, remove this block when ready..
+                    lb_network_ip = getattr(
+                        interface, 'fixed_ips')[0]['ip_address']
+                    break
+        except Exception:
+            LOG.debug('Extracting virtual interfaces through nova '
+                      'os-interfaces extension failed.')
+
+        response = models.Distributor(
             compute_id=nova_response.id,
             status=nova_response.status,
             lb_network_ip=lb_network_ip

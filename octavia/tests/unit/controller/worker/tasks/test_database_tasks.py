@@ -30,6 +30,8 @@ import octavia.tests.unit.base as base
 
 AMP_ID = uuidutils.generate_uuid()
 COMPUTE_ID = uuidutils.generate_uuid()
+DISTR_ID = AMP_ID
+DISTR_COMPUTE_ID = uuidutils.generate_uuid()
 LB_ID = uuidutils.generate_uuid()
 SERVER_GROUP_ID = uuidutils.generate_uuid()
 LB_NET_IP = '192.0.2.2'
@@ -61,6 +63,10 @@ _amphora_mock.role = AMP_ROLE
 _amphora_mock.vrrp_id = VRRP_ID
 _amphora_mock.vrrp_priority = VRRP_PRIORITY
 _amphorae = [_amphora_mock]
+_distributor_mock = mock.MagicMock()
+_distributor_mock.id = DISTR_ID
+_distributor_mock.compute_id = DISTR_COMPUTE_ID
+_distributor_mock.lb_network_ip = LB_NET_IP
 _loadbalancer_mock = mock.MagicMock()
 _loadbalancer_mock.id = LB_ID
 _loadbalancer_mock.amphorae = [_amphora_mock]
@@ -117,6 +123,8 @@ uJIQ
 -----END CERTIFICATE-----"""
 
 
+@mock.patch('octavia.db.repositories.DistributorRepository.delete')
+@mock.patch('octavia.db.repositories.DistributorRepository.update')
 @mock.patch('octavia.db.repositories.AmphoraRepository.delete')
 @mock.patch('octavia.db.repositories.AmphoraRepository.update')
 @mock.patch('octavia.db.repositories.ListenerRepository.update')
@@ -162,7 +170,9 @@ class TestDatabaseTasks(base.TestCase):
                                   mock_loadbalancer_repo_update,
                                   mock_listener_repo_update,
                                   mock_amphora_repo_update,
-                                  mock_amphora_repo_delete):
+                                  mock_amphora_repo_delete,
+                                  mock_distributor_repo_update,
+                                  mock_distributor_repo_delete):
 
         create_amp_in_db = database_tasks.CreateAmphoraInDB()
         amp_id = create_amp_in_db.execute()
@@ -195,6 +205,46 @@ class TestDatabaseTasks(base.TestCase):
             'TEST',
             id='AMP')
 
+# TODO(johnsom) finish when this method is updated
+        amp = create_amp_in_db.revert(_tf_failure_mock)
+
+        self.assertIsNone(amp)
+
+        amp = create_amp_in_db.revert(result='TEST')
+
+        self.assertIsNone(amp)
+
+    @mock.patch('octavia.db.repositories.DistributorRepository.create',
+                return_value=_distributor_mock)
+    def test_create_distributor_in_db(self,
+                                      mock_create,
+                                      mock_generate_uuid,
+                                      mock_LOG,
+                                      mock_get_session,
+                                      mock_loadbalancer_repo_update,
+                                      mock_listener_repo_update,
+                                      mock_amphora_repo_update,
+                                      mock_amphora_repo_delete,
+                                      mock_distributor_repo_update,
+                                      mock_distributor_repo_delete):
+
+        create_distributor_in_db = database_tasks.CreateDistributorInDB()
+        distr_id = create_distributor_in_db.execute()
+
+        repo.DistributorRepository.create.assert_called_once_with(
+            'TEST',
+            id=DISTR_ID,
+            status=constants.DISTRIBUTOR_PENDING_CREATE)
+
+        assert(distr_id == _distributor_mock.id)
+
+        # Test the revert
+        distr = create_distributor_in_db.revert(_tf_failure_mock)
+
+        self.assertIsNone(distr)
+        distr = create_distributor_in_db.revert(result='TEST')
+        self.assertIsNone(distr)
+
     @mock.patch('octavia.db.repositories.ListenerRepository.delete')
     def test_delete_listener_in_db(self,
                                    mock_listener_repo_delete,
@@ -204,7 +254,9 @@ class TestDatabaseTasks(base.TestCase):
                                    mock_loadbalancer_repo_update,
                                    mock_listener_repo_update,
                                    mock_amphora_repo_update,
-                                   mock_amphora_repo_delete):
+                                   mock_amphora_repo_delete,
+                                   mock_distributor_repo_update,
+                                   mock_distributor_repo_delete):
 
         delete_listener = database_tasks.DeleteListenerInDB()
         delete_listener.execute(_listener_mock)
@@ -222,7 +274,9 @@ class TestDatabaseTasks(base.TestCase):
                                          mock_loadbalancer_repo_update,
                                          mock_listener_repo_update,
                                          mock_amphora_repo_update,
-                                         mock_amphora_repo_delete):
+                                         mock_amphora_repo_delete,
+                                         mock_distributor_repo_update,
+                                         mock_distributor_repo_delete):
 
         delete_health_mon = database_tasks.DeleteHealthMonitorInDB()
         delete_health_mon.execute(POOL_ID)
@@ -254,7 +308,9 @@ class TestDatabaseTasks(base.TestCase):
                                                  mock_loadbalancer_repo_update,
                                                  mock_listener_repo_update,
                                                  mock_amphora_repo_update,
-                                                 mock_amphora_repo_delete):
+                                                 mock_amphora_repo_delete,
+                                                 mock_distributor_repo_update,
+                                                 mock_distributor_repo_delete):
 
         delete_health_mon = database_tasks.DeleteHealthMonitorInDBByPool()
         delete_health_mon.execute(self.pool_mock)
@@ -283,7 +339,9 @@ class TestDatabaseTasks(base.TestCase):
                                  mock_loadbalancer_repo_update,
                                  mock_listener_repo_update,
                                  mock_amphora_repo_update,
-                                 mock_amphora_repo_delete):
+                                 mock_amphora_repo_delete,
+                                 mock_distributor_repo_update,
+                                 mock_distributor_repo_delete):
 
         delete_member = database_tasks.DeleteMemberInDB()
         delete_member.execute(self.member_mock)
@@ -311,7 +369,9 @@ class TestDatabaseTasks(base.TestCase):
                                mock_loadbalancer_repo_update,
                                mock_listener_repo_update,
                                mock_amphora_repo_update,
-                               mock_amphora_repo_delete):
+                               mock_amphora_repo_delete,
+                               mock_distributor_repo_update,
+                               mock_distributor_repo_delete):
 
         delete_pool = database_tasks.DeletePoolInDB()
         delete_pool.execute(_pool_mock)
@@ -340,7 +400,9 @@ class TestDatabaseTasks(base.TestCase):
                                    mock_loadbalancer_repo_update,
                                    mock_listener_repo_update,
                                    mock_amphora_repo_update,
-                                   mock_amphora_repo_delete):
+                                   mock_amphora_repo_delete,
+                                   mock_distributor_repo_update,
+                                   mock_distributor_repo_delete):
 
         delete_l7policy = database_tasks.DeleteL7PolicyInDB()
         delete_l7policy.execute(_l7policy_mock)
@@ -369,7 +431,9 @@ class TestDatabaseTasks(base.TestCase):
                                  mock_loadbalancer_repo_update,
                                  mock_listener_repo_update,
                                  mock_amphora_repo_update,
-                                 mock_amphora_repo_delete):
+                                 mock_amphora_repo_delete,
+                                 mock_distributor_repo_update,
+                                 mock_distributor_repo_delete):
 
         delete_l7rule = database_tasks.DeleteL7RuleInDB()
         delete_l7rule.execute(_l7rule_mock)
@@ -399,7 +463,9 @@ class TestDatabaseTasks(base.TestCase):
                             mock_loadbalancer_repo_update,
                             mock_listener_repo_update,
                             mock_amphora_repo_update,
-                            mock_amphora_repo_delete):
+                            mock_amphora_repo_delete,
+                            mock_distributor_repo_update,
+                            mock_distributor_repo_delete):
 
         reload_amp = database_tasks.ReloadAmphora()
         amp = reload_amp.execute(AMP_ID)
@@ -409,6 +475,29 @@ class TestDatabaseTasks(base.TestCase):
             id=AMP_ID)
 
         self.assertEqual(_amphora_mock, amp)
+
+    @mock.patch('octavia.db.repositories.DistributorRepository.get',
+                return_value=_distributor_mock)
+    def test_reload_distributor(self,
+                                mock_distr_get,
+                                mock_generate_uuid,
+                                mock_LOG,
+                                mock_get_session,
+                                mock_loadbalancer_repo_update,
+                                mock_listener_repo_update,
+                                mock_amphora_repo_update,
+                                mock_amphora_repo_delete,
+                                mock_distributor_repo_update,
+                                mock_distributor_repo_delete):
+
+        reload_distr = database_tasks.ReloadDistributor()
+        distr = reload_distr.execute(DISTR_ID)
+
+        repo.DistributorRepository.get.assert_called_once_with(
+            'TEST',
+            id=DISTR_ID)
+
+        self.assertEqual(_distributor_mock, distr)
 
     @mock.patch('octavia.db.repositories.LoadBalancerRepository.get',
                 return_value=_loadbalancer_mock)
@@ -420,7 +509,9 @@ class TestDatabaseTasks(base.TestCase):
                                   mock_loadbalancer_repo_update,
                                   mock_listener_repo_update,
                                   mock_amphora_repo_update,
-                                  mock_amphora_repo_delete):
+                                  mock_amphora_repo_delete,
+                                  mock_distributor_repo_update,
+                                  mock_distributor_repo_delete):
 
         reload_lb = database_tasks.ReloadLoadBalancer()
         lb = reload_lb.execute(LB_ID)
@@ -443,7 +534,9 @@ class TestDatabaseTasks(base.TestCase):
                                          mock_loadbalancer_repo_update,
                                          mock_listener_repo_update,
                                          mock_amphora_repo_update,
-                                         mock_amphora_repo_delete):
+                                         mock_amphora_repo_delete,
+                                         mock_distributor_repo_update,
+                                         mock_distributor_repo_delete):
 
         update_vip = database_tasks.UpdateVIPAfterAllocation()
         loadbalancer = update_vip.execute(LB_ID, _vip_mock)
@@ -464,7 +557,9 @@ class TestDatabaseTasks(base.TestCase):
                                      mock_loadbalancer_repo_update,
                                      mock_listener_repo_update,
                                      mock_amphora_repo_update,
-                                     mock_amphora_repo_delete):
+                                     mock_amphora_repo_delete,
+                                     mock_distributor_repo_update,
+                                     mock_distributor_repo_delete):
 
         update_amp_vip_data = database_tasks.UpdateAmphoraVIPData()
         update_amp_vip_data.execute(_amphorae)
@@ -485,7 +580,9 @@ class TestDatabaseTasks(base.TestCase):
                                          mock_loadbalancer_repo_update,
                                          mock_listener_repo_update,
                                          mock_amphora_repo_update,
-                                         mock_amphora_repo_delete):
+                                         mock_amphora_repo_delete,
+                                         mock_distributor_repo_update,
+                                         mock_distributor_repo_delete):
 
         update_amp_fo_details = database_tasks.UpdateAmpFailoverDetails()
         update_amp_fo_details.execute(_amphora_mock, _amphora_mock)
@@ -509,7 +606,9 @@ class TestDatabaseTasks(base.TestCase):
             mock_loadbalancer_repo_update,
             mock_listener_repo_update,
             mock_amphora_repo_update,
-            mock_amphora_repo_delete):
+            mock_amphora_repo_delete,
+            mock_distributor_repo_update,
+            mock_distributor_repo_delete):
 
         assoc_fo_amp_lb_id = database_tasks.AssociateFailoverAmphoraWithLBID()
         assoc_fo_amp_lb_id.execute(AMP_ID, LB_ID)
@@ -546,7 +645,9 @@ class TestDatabaseTasks(base.TestCase):
                                          mock_loadbalancer_repo_update,
                                          mock_listener_repo_update,
                                          mock_amphora_repo_update,
-                                         mock_amphora_repo_delete):
+                                         mock_amphora_repo_delete,
+                                         mock_distributor_repo_update,
+                                         mock_distributor_repo_delete):
 
         map_lb_to_amp = database_tasks.MapLoadbalancerToAmphora()
         amp_id = map_lb_to_amp.execute(self.loadbalancer_mock.id)
@@ -590,7 +691,9 @@ class TestDatabaseTasks(base.TestCase):
                                             mock_loadbalancer_repo_update,
                                             mock_listener_repo_update,
                                             mock_amphora_repo_update,
-                                            mock_amphora_repo_delete):
+                                            mock_amphora_repo_delete,
+                                            mock_distributor_repo_update,
+                                            mock_distributor_repo_delete):
 
         mark_amp_deleted_in_db = (database_tasks.
                                   MarkLBAmphoraeDeletedInDB())
@@ -614,7 +717,9 @@ class TestDatabaseTasks(base.TestCase):
                                           mock_loadbalancer_repo_update,
                                           mock_listener_repo_update,
                                           mock_amphora_repo_update,
-                                          mock_amphora_repo_delete):
+                                          mock_amphora_repo_delete,
+                                          mock_distributor_repo_update,
+                                          mock_distributor_repo_delete):
 
         mark_amp_allocated_in_db = (database_tasks.
                                     MarkAmphoraAllocatedInDB())
@@ -659,7 +764,9 @@ class TestDatabaseTasks(base.TestCase):
                                         mock_loadbalancer_repo_update,
                                         mock_listener_repo_update,
                                         mock_amphora_repo_update,
-                                        mock_amphora_repo_delete):
+                                        mock_amphora_repo_delete,
+                                        mock_distributor_repo_update,
+                                        mock_distributor_repo_delete):
 
         mark_amp_booting_in_db = database_tasks.MarkAmphoraBootingInDB()
         mark_amp_booting_in_db.execute(_amphora_mock.id,
@@ -670,8 +777,6 @@ class TestDatabaseTasks(base.TestCase):
             AMP_ID,
             status=constants.AMPHORA_BOOTING,
             compute_id=COMPUTE_ID)
-
-        # Test the revert
 
         mock_amphora_repo_update.reset_mock()
         mark_amp_booting_in_db.revert(None, _amphora_mock.id,
@@ -696,6 +801,37 @@ class TestDatabaseTasks(base.TestCase):
             status=constants.ERROR,
             compute_id=COMPUTE_ID)
 
+    def test_mark_distributor_booting_in_db(self,
+                                            mock_generate_uuid,
+                                            mock_LOG,
+                                            mock_get_session,
+                                            mock_loadbalancer_repo_update,
+                                            mock_listener_repo_update,
+                                            mock_amphora_repo_update,
+                                            mock_amphora_repo_delete,
+                                            mock_distributor_repo_update,
+                                            mock_distributor_repo_delete):
+
+        mark_distr_booting_in_db = database_tasks.MarkDistributorBootingInDB()
+        mark_distr_booting_in_db.execute(_distributor_mock.id,
+                                         _distributor_mock.compute_id)
+
+        repo.DistributorRepository.update.assert_called_once_with(
+            'TEST',
+            DISTR_ID,
+            status=constants.DISTRIBUTOR_BOOTING,
+            compute_id=DISTR_COMPUTE_ID)
+
+        mock_distributor_repo_update.reset_mock()
+        mark_distr_booting_in_db.revert(None, _distributor_mock.id,
+                                        _distributor_mock.compute_id)
+
+        repo.DistributorRepository.update.assert_called_once_with(
+            'TEST',
+            DISTR_ID,
+            status=constants.DISTRIBUTOR_ERROR,
+            compute_id=DISTR_COMPUTE_ID)
+
     def test_mark_amphora_deleted_in_db(self,
                                         mock_generate_uuid,
                                         mock_LOG,
@@ -703,7 +839,9 @@ class TestDatabaseTasks(base.TestCase):
                                         mock_loadbalancer_repo_update,
                                         mock_listener_repo_update,
                                         mock_amphora_repo_update,
-                                        mock_amphora_repo_delete):
+                                        mock_amphora_repo_delete,
+                                        mock_distributor_repo_update,
+                                        mock_distributor_repo_delete):
 
         mark_amp_deleted_in_db = database_tasks.MarkAmphoraDeletedInDB()
         mark_amp_deleted_in_db.execute(_amphora_mock)
@@ -739,7 +877,9 @@ class TestDatabaseTasks(base.TestCase):
                                                mock_loadbalancer_repo_update,
                                                mock_listener_repo_update,
                                                mock_amphora_repo_update,
-                                               mock_amphora_repo_delete):
+                                               mock_amphora_repo_delete,
+                                               mock_distributor_repo_update,
+                                               mock_distributor_repo_delete):
 
         mark_amp_pending_delete_in_db = (database_tasks.
                                          MarkAmphoraPendingDeleteInDB())
@@ -777,7 +917,9 @@ class TestDatabaseTasks(base.TestCase):
                                                mock_loadbalancer_repo_update,
                                                mock_listener_repo_update,
                                                mock_amphora_repo_update,
-                                               mock_amphora_repo_delete):
+                                               mock_amphora_repo_delete,
+                                               mock_distributor_repo_update,
+                                               mock_distributor_repo_delete):
 
         mark_amp_pending_update_in_db = (database_tasks.
                                          MarkAmphoraPendingUpdateInDB())
@@ -814,7 +956,9 @@ class TestDatabaseTasks(base.TestCase):
                                       mock_loadbalancer_repo_update,
                                       mock_listener_repo_update,
                                       mock_amphora_repo_update,
-                                      mock_amphora_repo_delete):
+                                      mock_amphora_repo_delete,
+                                      mock_distributor_repo_update,
+                                      mock_distributor_repo_delete):
 
         _amphora_mock.lb_network_ip = LB_NET_IP
 
@@ -853,6 +997,41 @@ class TestDatabaseTasks(base.TestCase):
             compute_id=COMPUTE_ID,
             lb_network_ip=LB_NET_IP)
 
+    def test_mark_distributor_ready_in_db(self,
+                                          mock_generate_uuid,
+                                          mock_LOG,
+                                          mock_get_session,
+                                          mock_loadbalancer_repo_update,
+                                          mock_listener_repo_update,
+                                          mock_amphora_repo_update,
+                                          mock_amphora_repo_delete,
+                                          mock_distributor_repo_update,
+                                          mock_distributor_repo_delete):
+
+        _distributor_mock.lb_network_ip = LB_NET_IP
+
+        mark_distr_ready_in_db = database_tasks.MarkDistributorReadyInDB()
+        mark_distr_ready_in_db.execute(_distributor_mock)
+
+        repo.DistributorRepository.update.assert_called_once_with(
+            'TEST',
+            DISTR_ID,
+            status=constants.DISTRIBUTOR_READY,
+            compute_id=DISTR_COMPUTE_ID,
+            lb_network_ip=LB_NET_IP)
+
+        # Test the revert
+
+        mock_distributor_repo_update.reset_mock()
+        mark_distr_ready_in_db.revert(_distributor_mock)
+
+        repo.DistributorRepository.update.assert_called_once_with(
+            'TEST',
+            DISTR_ID,
+            status=constants.DISTRIBUTOR_ERROR,
+            compute_id=DISTR_COMPUTE_ID,
+            lb_network_ip=LB_NET_IP)
+
     def test_mark_listener_active_in_db(self,
                                         mock_generate_uuid,
                                         mock_LOG,
@@ -860,7 +1039,9 @@ class TestDatabaseTasks(base.TestCase):
                                         mock_loadbalancer_repo_update,
                                         mock_listener_repo_update,
                                         mock_amphora_repo_update,
-                                        mock_amphora_repo_delete):
+                                        mock_amphora_repo_delete,
+                                        mock_distributor_repo_update,
+                                        mock_distributor_repo_delete):
 
         mark_listener_active = database_tasks.MarkListenerActiveInDB()
         mark_listener_active.execute(self.listener_mock)
@@ -896,7 +1077,9 @@ class TestDatabaseTasks(base.TestCase):
                                          mock_loadbalancer_repo_update,
                                          mock_listener_repo_update,
                                          mock_amphora_repo_update,
-                                         mock_amphora_repo_delete):
+                                         mock_amphora_repo_delete,
+                                         mock_distributor_repo_update,
+                                         mock_distributor_repo_delete):
 
         mark_listener_deleted = database_tasks.MarkListenerDeletedInDB()
         mark_listener_deleted.execute(self.listener_mock)
@@ -932,7 +1115,9 @@ class TestDatabaseTasks(base.TestCase):
                                                  mock_loadbalancer_repo_update,
                                                  mock_listener_repo_update,
                                                  mock_amphora_repo_update,
-                                                 mock_amphora_repo_delete):
+                                                 mock_amphora_repo_delete,
+                                                 mock_distributor_repo_update,
+                                                 mock_distributor_repo_delete):
 
         mark_listener_pending_delete = (database_tasks.
                                         MarkListenerPendingDeleteInDB())
@@ -969,7 +1154,9 @@ class TestDatabaseTasks(base.TestCase):
                                                 mock_loadbalancer_repo_update,
                                                 mock_listener_repo_update,
                                                 mock_amphora_repo_update,
-                                                mock_amphora_repo_delete):
+                                                mock_amphora_repo_delete,
+                                                mock_distributor_repo_update,
+                                                mock_distributor_repo_delete):
 
         mark_lb_and_listeners_active = (database_tasks.
                                         MarkLBAndListenersActiveInDB())
@@ -1029,7 +1216,9 @@ class TestDatabaseTasks(base.TestCase):
                                         mock_listener_repo_update,
                                         mock_amphora_repo_update,
                                         mock_amphora_repo_delete,
-                                        mock_get_cert_exp):
+                                        mock_get_cert_exp,
+                                        mock_distributor_repo_update,
+                                        mock_distributor_repo_delete):
 
         update_amp_cert = database_tasks.UpdateAmphoraDBCertExpiration()
         update_amp_cert.execute(_amphora_mock.id, _pem_mock)
@@ -1046,7 +1235,9 @@ class TestDatabaseTasks(base.TestCase):
                                                mock_loadbalancer_repo_update,
                                                mock_listener_repo_update,
                                                mock_amphora_repo_update,
-                                               mock_amphora_repo_delete):
+                                               mock_amphora_repo_delete,
+                                               mock_distributor_repo_update,
+                                               mock_distributor_repo_delete):
         amp_cert_busy_to_F = database_tasks.UpdateAmphoraCertBusyToFalse()
         amp_cert_busy_to_F.execute(_amphora_mock)
         repo.AmphoraRepository.update.assert_called_once_with(
@@ -1061,7 +1252,9 @@ class TestDatabaseTasks(base.TestCase):
                                   mock_loadbalancer_repo_update,
                                   mock_listener_repo_update,
                                   mock_amphora_repo_update,
-                                  mock_amphora_repo_delete):
+                                  mock_amphora_repo_delete,
+                                  mock_distributor_repo_update,
+                                  mock_distributor_repo_delete):
 
         mark_loadbalancer_active = database_tasks.MarkLBActiveInDB()
         mark_loadbalancer_active.execute(self.loadbalancer_mock)
@@ -1100,7 +1293,9 @@ class TestDatabaseTasks(base.TestCase):
                                                 mock_loadbalancer_repo_update,
                                                 mock_listener_repo_update,
                                                 mock_amphora_repo_update,
-                                                mock_amphora_repo_delete):
+                                                mock_amphora_repo_delete,
+                                                mock_distributor_repo_update,
+                                                mock_distributor_repo_delete):
         listeners = [data_models.Listener(id='listener1'),
                      data_models.Listener(id='listener2')]
         lb = data_models.LoadBalancer(id=LB_ID, listeners=listeners)
@@ -1140,7 +1335,9 @@ class TestDatabaseTasks(base.TestCase):
                                    mock_loadbalancer_repo_update,
                                    mock_listener_repo_update,
                                    mock_amphora_repo_update,
-                                   mock_amphora_repo_delete):
+                                   mock_amphora_repo_delete,
+                                   mock_distributor_repo_update,
+                                   mock_distributor_repo_delete):
 
         mark_loadbalancer_deleted = database_tasks.MarkLBDeletedInDB()
         mark_loadbalancer_deleted.execute(self.loadbalancer_mock)
@@ -1176,7 +1373,9 @@ class TestDatabaseTasks(base.TestCase):
                                            mock_loadbalancer_repo_update,
                                            mock_listener_repo_update,
                                            mock_amphora_repo_update,
-                                           mock_amphora_repo_delete):
+                                           mock_amphora_repo_delete,
+                                           mock_distributor_repo_update,
+                                           mock_distributor_repo_delete):
 
         mark_loadbalancer_pending_delete = (database_tasks.
                                             MarkLBPendingDeleteInDB())
@@ -1215,7 +1414,9 @@ class TestDatabaseTasks(base.TestCase):
                                          mock_loadbalancer_repo_update,
                                          mock_listener_repo_update,
                                          mock_amphora_repo_update,
-                                         mock_amphora_repo_delete):
+                                         mock_amphora_repo_delete,
+                                         mock_distributor_repo_update,
+                                         mock_distributor_repo_delete):
 
         update_health_mon = database_tasks.UpdateHealthMonInDB()
         update_health_mon.execute(self.health_mon_mock,
@@ -1256,7 +1457,9 @@ class TestDatabaseTasks(base.TestCase):
                                         mock_loadbalancer_repo_update,
                                         mock_listener_repo_update,
                                         mock_amphora_repo_update,
-                                        mock_amphora_repo_delete):
+                                        mock_amphora_repo_delete,
+                                        mock_distributor_repo_update,
+                                        mock_distributor_repo_delete):
 
         update_load_balancer = database_tasks.UpdateLoadbalancerInDB()
         update_load_balancer.execute(self.loadbalancer_mock,
@@ -1295,7 +1498,9 @@ class TestDatabaseTasks(base.TestCase):
                                    mock_loadbalancer_repo_update,
                                    mock_listener_repo_update,
                                    mock_amphora_repo_update,
-                                   mock_amphora_repo_delete):
+                                   mock_amphora_repo_delete,
+                                   mock_distributor_repo_update,
+                                   mock_distributor_repo_delete):
 
         update_listener = database_tasks.UpdateListenerInDB()
         update_listener.execute(self.listener_mock,
@@ -1332,7 +1537,9 @@ class TestDatabaseTasks(base.TestCase):
                                  mock_loadbalancer_repo_update,
                                  mock_listener_repo_update,
                                  mock_amphora_repo_update,
-                                 mock_amphora_repo_delete):
+                                 mock_amphora_repo_delete,
+                                 mock_distributor_repo_update,
+                                 mock_distributor_repo_delete):
 
         update_member = database_tasks.UpdateMemberInDB()
         update_member.execute(self.member_mock,
@@ -1374,7 +1581,9 @@ class TestDatabaseTasks(base.TestCase):
                                mock_loadbalancer_repo_update,
                                mock_listener_repo_update,
                                mock_amphora_repo_update,
-                               mock_amphora_repo_delete):
+                               mock_amphora_repo_delete,
+                               mock_distributor_repo_update,
+                               mock_distributor_repo_delete):
 
         sp_dict = {'type': 'SOURCE_IP', 'cookie_name': None}
         update_dict = {'name': 'test', 'description': 'test2',
@@ -1418,7 +1627,9 @@ class TestDatabaseTasks(base.TestCase):
                                    mock_loadbalancer_repo_update,
                                    mock_listener_repo_update,
                                    mock_amphora_repo_update,
-                                   mock_amphora_repo_delete):
+                                   mock_amphora_repo_delete,
+                                   mock_distributor_repo_update,
+                                   mock_distributor_repo_delete):
 
         update_l7policy = database_tasks.UpdateL7PolicyInDB()
         update_l7policy.execute(self.l7policy_mock,
@@ -1461,7 +1672,9 @@ class TestDatabaseTasks(base.TestCase):
                                  mock_loadbalancer_repo_update,
                                  mock_listener_repo_update,
                                  mock_amphora_repo_update,
-                                 mock_amphora_repo_delete):
+                                 mock_amphora_repo_delete,
+                                 mock_distributor_repo_update,
+                                 mock_distributor_repo_delete):
 
         update_l7rule = database_tasks.UpdateL7RuleInDB()
         update_l7rule.execute(
@@ -1505,7 +1718,9 @@ class TestDatabaseTasks(base.TestCase):
                                  mock_loadbalancer_repo_update,
                                  mock_listener_repo_update,
                                  mock_amphora_repo_update,
-                                 mock_amphora_repo_delete):
+                                 mock_amphora_repo_delete,
+                                 mock_distributor_repo_update,
+                                 mock_distributor_repo_delete):
 
         get_amp_details = database_tasks.GetAmphoraDetails()
         new_amp = get_amp_details.execute(_amphora_mock)
@@ -1525,7 +1740,9 @@ class TestDatabaseTasks(base.TestCase):
                                     mock_loadbalancer_repo_update,
                                     mock_listener_repo_update,
                                     mock_amphora_repo_update,
-                                    mock_amphora_repo_delete):
+                                    mock_amphora_repo_delete,
+                                    mock_distributor_repo_update,
+                                    mock_distributor_repo_delete):
 
         mark_amp_master_indb = database_tasks.MarkAmphoraMasterInDB()
         mark_amp_master_indb.execute(_amphora_mock)
@@ -1589,7 +1806,9 @@ class TestDatabaseTasks(base.TestCase):
                                       mock_loadbalancer_repo_update,
                                       mock_listener_repo_update,
                                       mock_amphora_repo_update,
-                                      mock_amphora_repo_delete):
+                                      mock_amphora_repo_delete,
+                                      mock_distributor_repo_update,
+                                      mock_distributor_repo_delete):
 
         mock_get_session.side_effect = ['TEST',
                                         odb_exceptions.DBDuplicateEntry]
@@ -1613,7 +1832,9 @@ class TestDatabaseTasks(base.TestCase):
                                                mock_loadbalancer_repo_update,
                                                mock_listener_repo_update,
                                                mock_amphora_repo_update,
-                                               mock_amphora_repo_delete):
+                                               mock_amphora_repo_delete,
+                                               mock_distributor_repo_update,
+                                               mock_distributor_repo_delete):
         disable_amp_health = database_tasks.DisableAmphoraHealthMonitoring()
         disable_amp_health.execute(_amphora_mock)
         mock_amp_health_repo_delete.assert_called_once_with(
@@ -1629,7 +1850,9 @@ class TestDatabaseTasks(base.TestCase):
             mock_loadbalancer_repo_update,
             mock_listener_repo_update,
             mock_amphora_repo_update,
-            mock_amphora_repo_delete):
+            mock_amphora_repo_delete,
+            mock_distributor_repo_update,
+            mock_distributor_repo_delete):
         disable_amp_health = (
             database_tasks.DisableLBAmphoraeHealthMonitoring())
         disable_amp_health.execute(_loadbalancer_mock)
@@ -1645,7 +1868,9 @@ class TestDatabaseTasks(base.TestCase):
                                                  mock_loadbalancer_repo_update,
                                                  mock_listener_repo_update,
                                                  mock_amphora_repo_update,
-                                                 mock_amphora_repo_delete):
+                                                 mock_amphora_repo_delete,
+                                                 mock_distributor_repo_update,
+                                                 mock_distributor_repo_delete):
         mark_busy = database_tasks.MarkAmphoraHealthBusy()
         mark_busy.execute(_amphora_mock)
         mock_amp_health_repo_update.assert_called_once_with(
@@ -1661,7 +1886,9 @@ class TestDatabaseTasks(base.TestCase):
             mock_loadbalancer_repo_update,
             mock_listener_repo_update,
             mock_amphora_repo_update,
-            mock_amphora_repo_delete):
+            mock_amphora_repo_delete,
+            mock_distributor_repo_update,
+            mock_distributor_repo_delete):
         mark_busy = (
             database_tasks.MarkLBAmphoraeHealthBusy())
         mark_busy.execute(_loadbalancer_mock)
@@ -1677,7 +1904,9 @@ class TestDatabaseTasks(base.TestCase):
                                           mock_loadbalancer_repo_update,
                                           mock_listener_repo_update,
                                           mock_amphora_repo_update,
-                                          mock_amphora_repo_delete):
+                                          mock_amphora_repo_delete,
+                                          mock_distributor_repo_update,
+                                          mock_distributor_repo_delete):
 
         update_server_group_info = database_tasks.UpdateLBServerGroupInDB()
         update_server_group_info.execute(LB_ID, SERVER_GROUP_ID)
@@ -1705,7 +1934,9 @@ class TestDatabaseTasks(base.TestCase):
                                           mock_loadbalancer_repo_update,
                                           mock_listener_repo_update,
                                           mock_amphora_repo_update,
-                                          mock_amphora_repo_delete):
+                                          mock_amphora_repo_delete,
+                                          mock_distributor_repo_update,
+                                          mock_distributor_repo_delete):
 
         mark_health_mon_active = (database_tasks.MarkHealthMonitorActiveInDB())
         mark_health_mon_active.execute(self.health_mon_mock)
@@ -1744,7 +1975,9 @@ class TestDatabaseTasks(base.TestCase):
             mock_loadbalancer_repo_update,
             mock_listener_repo_update,
             mock_amphora_repo_update,
-            mock_amphora_repo_delete):
+            mock_amphora_repo_delete,
+            mock_distributor_repo_update,
+            mock_distributor_repo_delete):
 
         mark_health_mon_pending_create = (database_tasks.
                                           MarkHealthMonitorPendingCreateInDB())
@@ -1784,7 +2017,9 @@ class TestDatabaseTasks(base.TestCase):
             mock_loadbalancer_repo_update,
             mock_listener_repo_update,
             mock_amphora_repo_update,
-            mock_amphora_repo_delete):
+            mock_amphora_repo_delete,
+            mock_distributor_repo_update,
+            mock_distributor_repo_delete):
 
         mark_health_mon_pending_delete = (database_tasks.
                                           MarkHealthMonitorPendingDeleteInDB())
@@ -1824,7 +2059,9 @@ class TestDatabaseTasks(base.TestCase):
             mock_loadbalancer_repo_update,
             mock_listener_repo_update,
             mock_amphora_repo_update,
-            mock_amphora_repo_delete):
+            mock_amphora_repo_delete,
+            mock_distributor_repo_update,
+            mock_distributor_repo_delete):
 
         mark_health_mon_pending_update = (database_tasks.
                                           MarkHealthMonitorPendingUpdateInDB())
@@ -1863,7 +2100,9 @@ class TestDatabaseTasks(base.TestCase):
                                         mock_loadbalancer_repo_update,
                                         mock_listener_repo_update,
                                         mock_amphora_repo_update,
-                                        mock_amphora_repo_delete):
+                                        mock_amphora_repo_delete,
+                                        mock_distributor_repo_update,
+                                        mock_distributor_repo_delete):
 
         mark_l7policy_active = (database_tasks.MarkL7PolicyActiveInDB())
         mark_l7policy_active.execute(self.l7policy_mock)
@@ -1901,7 +2140,9 @@ class TestDatabaseTasks(base.TestCase):
                                                 mock_loadbalancer_repo_update,
                                                 mock_listener_repo_update,
                                                 mock_amphora_repo_update,
-                                                mock_amphora_repo_delete):
+                                                mock_amphora_repo_delete,
+                                                mock_distributor_repo_update,
+                                                mock_distributor_repo_delete):
 
         mark_l7policy_pending_create = (database_tasks.
                                         MarkL7PolicyPendingCreateInDB())
@@ -1940,7 +2181,9 @@ class TestDatabaseTasks(base.TestCase):
                                                 mock_loadbalancer_repo_update,
                                                 mock_listener_repo_update,
                                                 mock_amphora_repo_update,
-                                                mock_amphora_repo_delete):
+                                                mock_amphora_repo_delete,
+                                                mock_distributor_repo_update,
+                                                mock_distributor_repo_delete):
 
         mark_l7policy_pending_delete = (database_tasks.
                                         MarkL7PolicyPendingDeleteInDB())
@@ -1979,7 +2222,9 @@ class TestDatabaseTasks(base.TestCase):
                                                 mock_loadbalancer_repo_update,
                                                 mock_listener_repo_update,
                                                 mock_amphora_repo_update,
-                                                mock_amphora_repo_delete):
+                                                mock_amphora_repo_delete,
+                                                mock_distributor_repo_update,
+                                                mock_distributor_repo_delete):
 
         mark_l7policy_pending_update = (database_tasks.
                                         MarkL7PolicyPendingUpdateInDB())
@@ -2018,7 +2263,9 @@ class TestDatabaseTasks(base.TestCase):
                                       mock_loadbalancer_repo_update,
                                       mock_listener_repo_update,
                                       mock_amphora_repo_update,
-                                      mock_amphora_repo_delete):
+                                      mock_amphora_repo_delete,
+                                      mock_distributor_repo_update,
+                                      mock_distributor_repo_delete):
 
         mark_l7rule_active = (database_tasks.MarkL7RuleActiveInDB())
         mark_l7rule_active.execute(self.l7rule_mock)
@@ -2056,7 +2303,9 @@ class TestDatabaseTasks(base.TestCase):
                                               mock_loadbalancer_repo_update,
                                               mock_listener_repo_update,
                                               mock_amphora_repo_update,
-                                              mock_amphora_repo_delete):
+                                              mock_amphora_repo_delete,
+                                              mock_distributor_repo_update,
+                                              mock_distributor_repo_delete):
 
         mark_l7rule_pending_create = (database_tasks.
                                       MarkL7RulePendingCreateInDB())
@@ -2095,7 +2344,9 @@ class TestDatabaseTasks(base.TestCase):
                                               mock_loadbalancer_repo_update,
                                               mock_listener_repo_update,
                                               mock_amphora_repo_update,
-                                              mock_amphora_repo_delete):
+                                              mock_amphora_repo_delete,
+                                              mock_distributor_repo_update,
+                                              mock_distributor_repo_delete):
 
         mark_l7rule_pending_delete = (database_tasks.
                                       MarkL7RulePendingDeleteInDB())
@@ -2134,7 +2385,9 @@ class TestDatabaseTasks(base.TestCase):
                                               mock_loadbalancer_repo_update,
                                               mock_listener_repo_update,
                                               mock_amphora_repo_update,
-                                              mock_amphora_repo_delete):
+                                              mock_amphora_repo_delete,
+                                              mock_distributor_repo_update,
+                                              mock_distributor_repo_delete):
 
         mark_l7rule_pending_update = (database_tasks.
                                       MarkL7RulePendingUpdateInDB())
@@ -2173,7 +2426,9 @@ class TestDatabaseTasks(base.TestCase):
                                       mock_loadbalancer_repo_update,
                                       mock_listener_repo_update,
                                       mock_amphora_repo_update,
-                                      mock_amphora_repo_delete):
+                                      mock_amphora_repo_delete,
+                                      mock_distributor_repo_update,
+                                      mock_distributor_repo_delete):
 
         mark_member_active = (database_tasks.MarkMemberActiveInDB())
         mark_member_active.execute(self.member_mock)
@@ -2211,7 +2466,9 @@ class TestDatabaseTasks(base.TestCase):
                                               mock_loadbalancer_repo_update,
                                               mock_listener_repo_update,
                                               mock_amphora_repo_update,
-                                              mock_amphora_repo_delete):
+                                              mock_amphora_repo_delete,
+                                              mock_distributor_repo_update,
+                                              mock_distributor_repo_delete):
 
         mark_member_pending_create = (database_tasks.
                                       MarkMemberPendingCreateInDB())
@@ -2250,7 +2507,9 @@ class TestDatabaseTasks(base.TestCase):
                                               mock_loadbalancer_repo_update,
                                               mock_listener_repo_update,
                                               mock_amphora_repo_update,
-                                              mock_amphora_repo_delete):
+                                              mock_amphora_repo_delete,
+                                              mock_distributor_repo_update,
+                                              mock_distributor_repo_delete):
 
         mark_member_pending_delete = (database_tasks.
                                       MarkMemberPendingDeleteInDB())
@@ -2289,7 +2548,9 @@ class TestDatabaseTasks(base.TestCase):
                                               mock_loadbalancer_repo_update,
                                               mock_listener_repo_update,
                                               mock_amphora_repo_update,
-                                              mock_amphora_repo_delete):
+                                              mock_amphora_repo_delete,
+                                              mock_distributor_repo_update,
+                                              mock_distributor_repo_delete):
 
         mark_member_pending_update = (database_tasks.
                                       MarkMemberPendingUpdateInDB())
@@ -2328,7 +2589,9 @@ class TestDatabaseTasks(base.TestCase):
                                     mock_loadbalancer_repo_update,
                                     mock_listener_repo_update,
                                     mock_amphora_repo_update,
-                                    mock_amphora_repo_delete):
+                                    mock_amphora_repo_delete,
+                                    mock_distributor_repo_update,
+                                    mock_distributor_repo_delete):
 
         mark_pool_active = (database_tasks.MarkPoolActiveInDB())
         mark_pool_active.execute(self.pool_mock)
@@ -2366,7 +2629,9 @@ class TestDatabaseTasks(base.TestCase):
                                             mock_loadbalancer_repo_update,
                                             mock_listener_repo_update,
                                             mock_amphora_repo_update,
-                                            mock_amphora_repo_delete):
+                                            mock_amphora_repo_delete,
+                                            mock_distributor_repo_update,
+                                            mock_distributor_repo_delete):
 
         mark_pool_pending_create = (database_tasks.MarkPoolPendingCreateInDB())
         mark_pool_pending_create.execute(self.pool_mock)
@@ -2404,7 +2669,9 @@ class TestDatabaseTasks(base.TestCase):
                                             mock_loadbalancer_repo_update,
                                             mock_listener_repo_update,
                                             mock_amphora_repo_update,
-                                            mock_amphora_repo_delete):
+                                            mock_amphora_repo_delete,
+                                            mock_distributor_repo_update,
+                                            mock_distributor_repo_delete):
 
         mark_pool_pending_delete = (database_tasks.MarkPoolPendingDeleteInDB())
         mark_pool_pending_delete.execute(self.pool_mock)
@@ -2442,7 +2709,9 @@ class TestDatabaseTasks(base.TestCase):
                                             mock_loadbalancer_repo_update,
                                             mock_listener_repo_update,
                                             mock_amphora_repo_update,
-                                            mock_amphora_repo_delete):
+                                            mock_amphora_repo_delete,
+                                            mock_distributor_repo_update,
+                                            mock_distributor_repo_delete):
 
         mark_pool_pending_update = (database_tasks.
                                     MarkPoolPendingUpdateInDB())

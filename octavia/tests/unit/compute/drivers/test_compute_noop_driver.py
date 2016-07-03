@@ -37,6 +37,7 @@ class TestNoopComputeDriver(base.TestCase):
         self.confdrivefiles = "config_driver_files"
         self.user_data = "user_data"
         self.amphora_id = self.FAKE_UUID_1
+        self.distributor_id = self.FAKE_UUID_1
         self.loadbalancer_id = self.FAKE_UUID_1
         self.server_group_policy = 'anti-affinity'
         self.server_group_id = self.FAKE_UUID_1
@@ -74,8 +75,14 @@ class TestNoopComputeDriver(base.TestCase):
     def status(self):
         self.driver.status(self.amphora_id)
 
+    def test_distributor_status(self):
+        self.driver.distributor_status(self.distributor_id)
+
     def get_amphora(self):
         self.driver.get_amphora(self.amphora_id)
+
+    def get_distributor(self):
+        self.driver.get_distributor(self.distributor_id)
 
     def test_create_server_group(self):
         self.driver.create_server_group(self.loadbalancer_id,

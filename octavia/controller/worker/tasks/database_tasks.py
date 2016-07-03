@@ -43,6 +43,7 @@ class BaseDatabaseTask(task.Task):
     def __init__(self, **kwargs):
         self.repos = repo.Repositories()
         self.amphora_repo = repo.AmphoraRepository()
+        self.distributor_repo = repo.DistributorRepository()
         self.health_mon_repo = repo.HealthMonitorRepository()
         self.listener_repo = repo.ListenerRepository()
         self.loadbalancer_repo = repo.LoadBalancerRepository()
@@ -2569,3 +2570,129 @@ class CountPoolChildrenForQuota(BaseDatabaseTask):
         member_count = len(pool.members)
 
         return {'HM': health_mon_count, 'member': member_count}
+
+
+class CreateDistributorInDB(BaseDatabaseTask):
+    """Task to create an initial distributor in the Database."""
+
+    def execute(self, *args, **kwargs):
+        """Creates an pending create distributor record in the database.
+
+        :returns: The distriibutor object created
+        :rtype: data_models.Distributor
+        """
+
+        distributor = (self.distributor_repo.create(
+            db_apis.get_session(),
+            id=uuidutils.generate_uuid(),
+            status=constants.DISTRIBUTOR_PENDING_CREATE))
+
+        LOG.info(_LI("Created Distributor in DB with id %s"), distributor.id)
+        return distributor.id
+
+    def revert(self, result, *args, **kwargs):
+        """Revert by storing the distributor in error state in the DB
+
+        In a future version we might change the status to DELETED
+        if deleting the distributor was successful
+        """
+
+        if isinstance(result, failure.Failure):
+            # This task's execute failed, so nothing needed to be done to
+            # revert
+            return
+
+        # At this point the revert is being called because another task
+        # executed after this failed so we will need to do something and
+        # result is the distributor's id
+
+        LOG.warning(
+            _LW("Reverting create distributor in DB for distributor id %s "),
+            result)
+
+        # Delete the distributor for now. May want to just update status later
+        self.distributor_repo.delete(db_apis.get_session(), id=result)
+
+
+class MarkDistributorBootingInDB(BaseDatabaseTask):
+    """Mark the distributor as booting in the database."""
+
+    def execute(self, distributor_id, compute_id):
+        """Mark distributor booting in DB."""
+        self.distributor_repo.update(db_apis.get_session(), distributor_id,
+                                     status=constants.DISTRIBUTOR_BOOTING,
+                                     compute_id=compute_id)
+
+    def revert(self, result, distributor_id, compute_id, *args, **kwargs):
+        """Mark the distributor as broken and ready to be cleaned up."""
+
+        if isinstance(result, failure.Failure):
+            return
+
+        LOG.warning(_LW(
+            "Reverting mark distributor booting in DB for distributor "
+            "id %(amp)s and compute id %(comp)s"),
+            {'amp': distributor_id, 'comp': compute_id})
+        self.distributor_repo.update(db_apis.get_session(), distributor_id,
+                                     status=constants.DISTRIBUTOR_ERROR,
+                                     compute_id=compute_id)
+
+
+class UpdateDistributorInfo(BaseDatabaseTask):
+    def execute(self, distributor_id, compute_obj):
+        LOG.debug(
+            'UpdateDistributorInfo in DB for distributor_id: %s, '
+            'lb_network_ip:%s', distributor_id, compute_obj.lb_network_ip)
+        self.distributor_repo.update(db_apis.get_session(), distributor_id,
+                                     lb_network_ip=compute_obj.lb_network_ip)
+        return self.distributor_repo.get(db_apis.get_session(),
+                                         id=distributor_id)
+
+
+class ReloadDistributor(BaseDatabaseTask):
+    """Get a distributor object from the database."""
+
+    def execute(self, distributor_id):
+        """Get a distributor object from the database.
+
+        :param distributor_id: The distributor ID to lookup
+        :returns: The distributor object
+        """
+
+        LOG.debug("Get distributor from DB for distributor id: %s ",
+                  distributor_id)
+        return self.distributor_repo.get(db_apis.get_session(),
+                                         id=distributor_id)
+
+    def revert(self, *args, **kwargs):
+        pass
+
+
+class MarkDistributorReadyInDB(BaseDatabaseTask):
+    """This task will mark an amphora as ready in the database.
+
+    Assume sqlalchemy made sure the DB got
+    retried sufficiently - so just abort
+    """
+
+    def execute(self, distributor):
+        """Mark amphora as ready in DB."""
+
+        LOG.info(_LI("Mark READY in DB for distributor: %(amp)s with compute "
+                     "id %(comp)s"), {"amp": distributor.id,
+                                      "comp": distributor.compute_id})
+        self.distributor_repo.update(db_apis.get_session(), distributor.id,
+                                     status=constants.DISTRIBUTOR_READY,
+                                     compute_id=distributor.compute_id,
+                                     lb_network_ip=distributor.lb_network_ip)
+
+    def revert(self, distributor, *args, **kwargs):
+        """Mark the amphora as broken and ready to be cleaned up."""
+
+        LOG.warning(_LW("Reverting mark distributor ready in DB for "
+                        "distributor id %(amp)s and compute id %(comp)s"), {
+            'amp': distributor.id, 'comp': distributor.compute_id})
+        self.distributor_repo.update(db_apis.get_session(), distributor.id,
+                                     status=constants.DISTRIBUTOR_ERROR,
+                                     compute_id=distributor.compute_id,
+                                     lb_network_ip=distributor.lb_network_ip)

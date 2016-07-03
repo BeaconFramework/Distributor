@@ -63,6 +63,14 @@ class TestComputeTasks(base.TestCase):
         conf.config(group="controller_worker", amp_flavor_id=AMP_FLAVOR_ID)
         conf.config(group="controller_worker", amp_image_id=AMP_IMAGE_ID)
         conf.config(group="controller_worker", amp_image_tag=AMP_IMAGE_TAG)
+
+        conf.config(group="active_active_cluster",
+                    distributor_flavor_id=AMP_FLAVOR_ID)
+        conf.config(group="active_active_cluster",
+                    distributor_image_id=AMP_IMAGE_ID)
+        conf.config(group="active_active_cluster",
+                    distributor_image_tag=AMP_IMAGE_TAG)
+
         conf.config(group="controller_worker",
                     amp_ssh_key_name=AMP_SSH_KEY_NAME)
         conf.config(group="controller_worker", amp_boot_network_list=AMP_NET)
@@ -101,7 +109,7 @@ class TestComputeTasks(base.TestCase):
         # Validate that the build method was called properly
         mock_driver.build.assert_called_once_with(
             name="amphora-" + _amphora_mock.id,
-            amphora_flavor=AMP_FLAVOR_ID,
+            comp_flavor=AMP_FLAVOR_ID,
             image_id=AMP_IMAGE_ID,
             image_tag=AMP_IMAGE_TAG,
             image_owner=image_owner_id,
@@ -142,6 +150,58 @@ class TestComputeTasks(base.TestCase):
                     amp_image_owner_id='')
 
     @mock.patch('jinja2.Environment.get_template')
+    @mock.patch('octavia.distributor.backend.agent.'
+                'distributor_jinja_cfg.DistributorJinjaTemplater.'
+                'build_agent_config', return_value='test_conf')
+    @mock.patch('stevedore.driver.DriverManager.driver')
+    def test_distributor_compute_create(self, mock_driver, mock_conf,
+                                        mock_jinja):
+
+        conf = oslo_fixture.Config(cfg.CONF)
+        conf.config(group="controller_worker", amp_network=AMP_NET)
+        createcompute = compute_tasks.DistributorComputeCreate()
+
+        mock_driver.build.return_value = COMPUTE_ID
+        # Test execute()
+        compute_id = createcompute.execute(_amphora_mock.id, ports=[_port])
+
+        # Validate that the build method was called properly
+        mock_driver.build.assert_called_once_with(
+            name="distributor-" + _amphora_mock.id,
+            comp_flavor=AMP_FLAVOR_ID,
+            image_id=AMP_IMAGE_ID,
+            image_tag=AMP_IMAGE_TAG,
+            key_name=AMP_SSH_KEY_NAME,
+            sec_groups=AMP_SEC_GROUPS,
+            network_ids=AMP_NET,
+            port_ids=[PORT_ID],
+            config_drive_files={'/etc/octavia/'
+                                'distributor-agent.conf': 'test_conf'})
+
+        # Make sure it returns the expected compute_id
+        assert(compute_id == COMPUTE_ID)
+
+        # Test that a build exception is raised
+        createcompute = compute_tasks.DistributorComputeCreate()
+
+        self.assertRaises(TypeError,
+                          createcompute.execute,
+                          _amphora_mock, config_drive_files='test_cert')
+
+        # Test revert()
+
+        _amphora_mock.compute_id = COMPUTE_ID
+        createcompute = compute_tasks.ComputeCreate()
+        createcompute.revert(compute_id, _amphora_mock.id)
+
+        # Validate that the delete method was called properly
+        mock_driver.delete.assert_called_once_with(
+            COMPUTE_ID)
+
+        # Test that a delete exception is not raised
+        createcompute.revert(COMPUTE_ID, _amphora_mock.id)
+
+    @mock.patch('jinja2.Environment.get_template')
     @mock.patch('octavia.amphorae.backends.agent.'
                 'agent_jinja_cfg.AgentJinjaTemplater.'
                 'build_agent_config', return_value='test_conf')
@@ -164,7 +224,7 @@ class TestComputeTasks(base.TestCase):
         # Validate that the build method was called properly
         mock_driver.build.assert_called_once_with(
             name="amphora-" + _amphora_mock.id,
-            amphora_flavor=AMP_FLAVOR_ID,
+            comp_flavor=AMP_FLAVOR_ID,
             image_id=AMP_IMAGE_ID,
             image_tag=AMP_IMAGE_TAG,
             image_owner='',
@@ -223,7 +283,7 @@ class TestComputeTasks(base.TestCase):
         # Validate that the build method was called properly
         mock_driver.build.assert_called_once_with(
             name="amphora-" + _amphora_mock.id,
-            amphora_flavor=AMP_FLAVOR_ID,
+            comp_flavor=AMP_FLAVOR_ID,
             image_id=AMP_IMAGE_ID,
             image_tag=AMP_IMAGE_TAG,
             image_owner='',
@@ -280,7 +340,7 @@ class TestComputeTasks(base.TestCase):
         # Validate that the build method was called properly
         mock_driver.build.assert_called_once_with(
             name="amphora-" + _amphora_mock.id,
-            amphora_flavor=AMP_FLAVOR_ID,
+            comp_flavor=AMP_FLAVOR_ID,
             image_id=AMP_IMAGE_ID,
             image_tag=AMP_IMAGE_TAG,
             image_owner='',
@@ -296,6 +356,66 @@ class TestComputeTasks(base.TestCase):
             server_group_id=SERVER_GRPOUP_ID)
 
         self.assertEqual(COMPUTE_ID, compute_id)
+
+        # Test that a build exception is raised
+        self.useFixture(test_utils.OpenFixture(path, 'test'))
+
+        createcompute = compute_tasks.ComputeCreate()
+        self.assertRaises(TypeError,
+                          createcompute.execute,
+                          _amphora_mock,
+                          config_drive_files='test_cert')
+
+        # Test revert()
+
+        _amphora_mock.compute_id = COMPUTE_ID
+
+        createcompute = compute_tasks.ComputeCreate()
+        createcompute.revert(compute_id, _amphora_mock.id)
+
+        # Validate that the delete method was called properly
+        mock_driver.delete.assert_called_once_with(COMPUTE_ID)
+
+        # Test that a delete exception is not raised
+
+        createcompute.revert(COMPUTE_ID, _amphora_mock.id)
+
+    @mock.patch('jinja2.Environment.get_template')
+    @mock.patch('octavia.distributor.backend.agent.'
+                'distributor_jinja_cfg.DistributorJinjaTemplater.'
+                'build_agent_config', return_value='test_conf')
+    @mock.patch('stevedore.driver.DriverManager.driver')
+    def test_distributor_compute_create_cert(self, mock_driver, mock_conf,
+                                             mock_jinja):
+        createcompute = compute_tasks.CertDistributorComputeCreate()
+
+        mock_driver.build.return_value = COMPUTE_ID
+        path = '/etc/octavia/certs/ca_01.pem'
+        self.useFixture(test_utils.OpenFixture(path, 'test'))
+        conf = oslo_fixture.Config(cfg.CONF)
+        conf.config(group="controller_worker", amp_network=AMP_NET)
+
+        # Test execute()
+        compute_id = createcompute.execute(_amphora_mock.id, 'test_cert'
+                                           )
+
+        # Validate that the build method was called properly
+        mock_driver.build.assert_called_once_with(
+            name="distributor-" + _amphora_mock.id,
+            comp_flavor=AMP_FLAVOR_ID,
+            image_id=AMP_IMAGE_ID,
+            image_tag=AMP_IMAGE_TAG,
+            key_name=AMP_SSH_KEY_NAME,
+            sec_groups=AMP_SEC_GROUPS,
+            network_ids=AMP_NET,
+            port_ids=[],
+            config_drive_files={
+                '/etc/octavia/certs/server.pem': 'test_cert',
+                '/etc/octavia/certs/client_ca.pem': 'test',
+                '/etc/octavia/distributor-agent.conf': 'test_conf'})
+
+        # Make sure it returns the expected compute_id
+        assert (compute_id == COMPUTE_ID)
 
         # Test that a build exception is raised
         self.useFixture(test_utils.OpenFixture(path, 'test'))
@@ -338,6 +458,27 @@ class TestComputeTasks(base.TestCase):
         mock_driver.get_amphora.assert_called_once_with(COMPUTE_ID)
 
         _amphora_mock.status = constants.DELETED
+
+        self.assertRaises(exceptions.ComputeWaitTimeoutException,
+                          computewait.execute,
+                          _amphora_mock)
+
+    @mock.patch('stevedore.driver.DriverManager.driver')
+    @mock.patch('time.sleep')
+    def test_distributor_compute_wait(self, mock_time_sleep, mock_driver):
+
+        _amphora_mock.compute_id = COMPUTE_ID
+        _amphora_mock.status = constants.DISTRIBUTOR_ACTIVE
+        _amphora_mock.lb_network_ip = LB_NET_IP
+
+        mock_driver.get_distributor.return_value = _amphora_mock
+
+        computewait = compute_tasks.DistributorComputeWait()
+        computewait.execute(COMPUTE_ID)
+
+        mock_driver.get_distributor.assert_called_once_with(COMPUTE_ID)
+
+        _amphora_mock.status = constants.DISTRIBUTOR_DELETED
 
         self.assertRaises(exceptions.ComputeWaitTimeoutException,
                           computewait.execute,

@@ -102,9 +102,19 @@ class TestNovaClient(base.TestCase):
             lb_network_ip='10.0.0.1'
         )
 
+        self.distributor = models.Distributor(
+            compute_id=uuidutils.generate_uuid(),
+            status='DISTRIBUTOR_ACTIVE',
+            lb_network_ip='10.0.0.1'
+        )
+
         self.nova_response = mock.Mock()
         self.nova_response.id = self.amphora.compute_id
         self.nova_response.status = 'ACTIVE'
+
+        self.nova_distributor_response = mock.Mock()
+        self.nova_distributor_response.id = self.distributor.compute_id
+        self.nova_distributor_response.status = 'DISTRIBUTOR_ACTIVE'
 
         self.interface_list = mock.MagicMock()
         self.interface_list.net_id = 1
@@ -121,11 +131,15 @@ class TestNovaClient(base.TestCase):
         self.manager._nova_client = mock.MagicMock()
 
         self.nova_response.interface_list.side_effect = [[self.interface_list]]
+        self.nova_distributor_response.interface_list.side_effect = [[
+            self.interface_list]]
         self.manager.manager.get.return_value = self.nova_response
         self.manager.manager.create.return_value = self.nova_response
+
         self.manager.server_groups.create.return_value = mock.Mock()
 
         self.nova_response.addresses = {self.net_name: [{'addr': '10.0.0.1'}]}
+        self.nova_distributor_response.addresses = self.nova_response.addresses
 
         self.nova_network = mock.Mock()
         self.nova_network.label = self.net_name
@@ -142,7 +156,7 @@ class TestNovaClient(base.TestCase):
         super(TestNovaClient, self).setUp()
 
     def test_build(self):
-        amphora_id = self.manager.build(amphora_flavor=1, image_id=1,
+        amphora_id = self.manager.build(comp_flavor=1, image_id=1,
                                         key_name=1,
                                         sec_groups=1,
                                         network_ids=[1],
@@ -153,7 +167,7 @@ class TestNovaClient(base.TestCase):
         self.assertEqual(self.amphora.compute_id, amphora_id)
 
         self.manager.manager.create.assert_called_with(
-            name="amphora_name",
+            name="compute_name",
             nics=[{'net-id': 1}, {'port-id': 2}],
             image=1,
             flavor=1,
@@ -217,7 +231,7 @@ class TestNovaClient(base.TestCase):
                          self.manager.manager.create.call_args[1]['image'])
 
     def test_delete(self):
-        amphora_id = self.manager.build(amphora_flavor=1, image_id=1,
+        amphora_id = self.manager.build(comp_flavor=1, image_id=1,
                                         key_name=1, sec_groups=1,
                                         network_ids=[1])
         self.manager.delete(amphora_id)
@@ -225,7 +239,7 @@ class TestNovaClient(base.TestCase):
 
     def test_bad_delete(self):
         self.manager.manager.delete.side_effect = Exception
-        amphora_id = self.manager.build(amphora_flavor=1, image_id=1,
+        amphora_id = self.manager.build(comp_flavor=1, image_id=1,
                                         key_name=1, sec_groups=1,
                                         network_ids=[1])
         self.assertRaises(exceptions.ComputeDeleteException,
@@ -239,6 +253,15 @@ class TestNovaClient(base.TestCase):
         self.manager.manager.get.side_effect = Exception
         self.assertRaises(exceptions.ComputeStatusException,
                           self.manager.status, self.amphora.id)
+
+    def test_distributor_status(self):
+        status = self.manager.status(self.distributor.id)
+        self.assertEqual(constants.UP, status)
+
+    def test_bad_distributor_status(self):
+        self.manager.manager.get.side_effect = Exception
+        self.assertRaises(exceptions.ComputeStatusException,
+                          self.manager.status, self.distributor.id)
 
     def test_get_amphora(self):
         amphora = self.manager.get_amphora(self.amphora.compute_id)
@@ -260,6 +283,33 @@ class TestNovaClient(base.TestCase):
         self.manager._nova_client.networks.get.side_effect = Exception
         self.assertIsNone(
             self.manager._translate_amphora(self.nova_response).lb_network_ip)
+        self.nova_response.interface_list.called_with()
+
+    def test_get_distributor(self):
+        self.manager.manager.get.return_value = (
+            self.nova_distributor_response)
+        distributor = self.manager.get_distributor(self.distributor.compute_id)
+        self.assertEqual(self.distributor, distributor)
+        self.manager.manager.get.called_with(server=distributor.id)
+
+    def test_bad_get_distributor(self):
+        self.nova_response.id = self.distributor.compute_id
+        self.manager.manager.get.side_effect = Exception
+        self.assertRaises(exceptions.ComputeGetException,
+                          self.manager.get_distributor, self.distributor.id)
+
+    def test_translate_distributor(self):
+        distributor = self.manager._translate_distributor(
+            self.nova_distributor_response)
+        self.assertEqual(self.distributor, distributor)
+        self.nova_response.interface_list.called_with()
+
+    def test_bad_translate_distributor(self):
+        self.nova_distributor_response.interface_list.side_effect = Exception
+        self.manager._nova_client.networks.get.side_effect = Exception
+        self.assertIsNone(
+            self.manager._translate_distributor(
+                self.nova_distributor_response).lb_network_ip)
         self.nova_response.interface_list.called_with()
 
     def test_create_server_group(self):

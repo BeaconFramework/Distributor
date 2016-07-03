@@ -27,22 +27,22 @@ class NoopManager(object):
         super(NoopManager, self).__init__()
         self.computeconfig = {}
 
-    def build(self, name="amphora_name", amphora_flavor=None,
+    def build(self, name="compute_name", comp_flavor=None,
               image_id=None, image_tag=None, image_owner=None,
               key_name=None, sec_groups=None, network_ids=None,
               config_drive_files=None, user_data=None, port_ids=None,
               server_group_id=None):
-        LOG.debug("Compute %s no-op, build name %s, amphora_flavor %s, "
+        LOG.debug("Compute %s no-op, build name %s, comp_flavor %s, "
                   "image_id %s, image_tag %s, image_owner %s, key_name %s, "
                   "sec_groups %s, network_ids %s, config_drive_files %s, "
                   "user_data %s, port_ids %s, server_group_id %s",
                   self.__class__.__name__,
-                  name, amphora_flavor, image_id, image_tag, image_owner,
+                  name, comp_flavor, image_id, image_tag, image_owner,
                   key_name, sec_groups, network_ids, config_drive_files,
                   user_data, port_ids, server_group_id)
-        self.computeconfig[(name, amphora_flavor, image_id, image_tag,
+        self.computeconfig[(name, comp_flavor, image_id, image_tag,
                             image_owner, key_name, user_data)] = (
-            name, amphora_flavor,
+            name, comp_flavor,
             image_id, image_tag, image_owner, key_name, sec_groups,
             network_ids, config_drive_files,
             user_data, port_ids, 'build')
@@ -60,6 +60,12 @@ class NoopManager(object):
         self.computeconfig[compute_id] = (compute_id, 'status')
         return constants.UP
 
+    def distributor_status(self, compute_id):
+        LOG.debug("Compute %s no-op, compute_id %s",
+                  self.__class__.__name__, compute_id)
+        self.computeconfig[compute_id] = (compute_id, 'distributor_status')
+        return constants.UP
+
     def get_amphora(self, compute_id):
         LOG.debug("Compute %s no-op, compute_id %s",
                   self.__class__.__name__, compute_id)
@@ -67,6 +73,16 @@ class NoopManager(object):
         return data_models.Amphora(
             compute_id=compute_id,
             status=constants.ACTIVE,
+            lb_network_ip='192.0.2.1'
+        )
+
+    def get_distributor(self, compute_id):
+        LOG.debug("Compute %s no-op, compute_id %s",
+                  self.__class__.__name__, compute_id)
+        self.computeconfig[compute_id] = (compute_id, 'get_distributor')
+        return data_models.Distributor(
+            compute_id=compute_id,
+            status=constants.DISTRIBUTOR_ACTIVE,
             lb_network_ip='192.0.2.1'
         )
 
@@ -86,13 +102,13 @@ class NoopComputeDriver(driver_base.ComputeBase):
         super(NoopComputeDriver, self).__init__()
         self.driver = NoopManager()
 
-    def build(self, name="amphora_name", amphora_flavor=None,
+    def build(self, name="compute_name", comp_flavor=None,
               image_id=None, image_tag=None, image_owner=None,
               key_name=None, sec_groups=None, network_ids=None,
               config_drive_files=None, user_data=None, port_ids=None,
               server_group_id=None):
 
-        compute_id = self.driver.build(name, amphora_flavor,
+        compute_id = self.driver.build(name, comp_flavor,
                                        image_id, image_tag, image_owner,
                                        key_name, sec_groups, network_ids,
                                        config_drive_files, user_data, port_ids,
@@ -107,6 +123,12 @@ class NoopComputeDriver(driver_base.ComputeBase):
 
     def get_amphora(self, compute_id):
         return self.driver.get_amphora(compute_id)
+
+    def distributor_status(self, compute_id):
+        return self.driver.distributor_status(compute_id)
+
+    def get_distributor(self, compute_id):
+        return self.driver.get_distributor(compute_id)
 
     def create_server_group(self, name, policy):
         return self.driver.create_server_group(name, policy)

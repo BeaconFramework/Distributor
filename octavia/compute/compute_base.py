@@ -21,19 +21,20 @@ import six
 class ComputeBase(object):
 
     @abc.abstractmethod
-    def build(self, name="amphora_name", amphora_flavor=None,
+    def build(self, name="compute_name", comp_flavor=None,
               image_id=None, image_tag=None, image_owner=None,
               key_name=None, sec_groups=None, network_ids=None,
               config_drive_files=None, user_data=None, server_group_id=None):
         """Build a new amphora.
 
         :param name: Optional name for Amphora
-        :param amphora_flavor: Optionally specify a flavor
-        :param image_id: ID of the base image for the amphora instance
-        :param image_tag: tag of the base image for the amphora instance
+        :param comp_flavor: Optionally specify a flavor
+        :param image_id: ID of the base image for the instance
+        :param image_tag: tag of the base image for the instance
+        :param image_owner: owner of the base image for the instance
         :param key_name: Optionally specify a keypair
         :param sec_groups: Optionally specify list of security groups
-        :param network_ids: A list of network IDs to attach to the amphora
+        :param network_ids: A list of network IDs to attach to the instance
         :param config_drive_files:  An optional dict of files to overwrite on
         the server upon boot. Keys are file names (i.e. /etc/passwd)
         and values are the file contents (either as a string or as
@@ -45,8 +46,8 @@ class ComputeBase(object):
         :param server_group_id: Optional server group id(uuid) which is used
         for anti_affinity feature
 
-        :raises ComputeBuildException: if compute failed to build amphora
-        :returns: UUID of amphora
+        :raises ComputeBuildException: if compute failed to build the instance
+        :returns: UUID of compute node
         """
         pass
 
@@ -73,6 +74,24 @@ class ComputeBase(object):
 
         :param compute_id: the id of the desired amphora
         :returns: the amphora object
+        """
+        pass
+
+    @abc.abstractmethod
+    def distributor_status(self, compute_id):
+        """Check whether the specified amphora is up
+
+        :param compute_id: the ID of the desired distributor
+        :returns: The compute "status" response ("ONLINE" or "OFFLINE")
+        """
+        pass
+
+    @abc.abstractmethod
+    def get_distributor(self, compute_id):
+        """Retrieve a distributor object
+
+        :param compute_id: the id of the desired distributor
+        :returns: the distributor object
         """
         pass
 
