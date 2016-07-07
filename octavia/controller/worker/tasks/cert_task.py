@@ -46,3 +46,17 @@ class GenerateServerPEMTask(BaseCertTask):
             validity=CERT_VALIDITY)
 
         return cert.certificate + cert.private_key
+
+
+class GenerateDistributorServerPEMTask(BaseCertTask):
+    """Create the server certs for the agent comm
+
+    Use the amphora_id for the CN
+    """
+
+    def execute(self, distributor_id):
+        cert = self.cert_generator.generate_cert_key_pair(
+            cn=distributor_id,
+            validity=CERT_VALIDITY)
+
+        return cert.certificate + cert.private_key

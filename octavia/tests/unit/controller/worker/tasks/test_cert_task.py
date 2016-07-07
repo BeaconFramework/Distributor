@@ -27,6 +27,19 @@ class TestCertTasks(base.TestCase):
         mock_driver.generate_cert_key_pair.side_effect = [dummy_cert]
         c = cert_task.GenerateServerPEMTask()
         pem = c.execute('123')
+
+        self.assertEqual(
+            pem, dummy_cert.get_certificate() + dummy_cert.get_private_key())
+        mock_driver.generate_cert_key_pair.assert_called_once_with(
+            cn='123', validity=cert_task.CERT_VALIDITY)
+
+    @mock.patch('stevedore.driver.DriverManager.driver')
+    def test_distributor_execute(self, mock_driver):
+        dummy_cert = local.LocalCert('test_cert', 'test_key')
+        mock_driver.generate_cert_key_pair.side_effect = [dummy_cert]
+        c = cert_task.GenerateDistributorServerPEMTask()
+        pem = c.execute('123')
+
         self.assertEqual(
             pem, dummy_cert.get_certificate() + dummy_cert.get_private_key())
         mock_driver.generate_cert_key_pair.assert_called_once_with(
