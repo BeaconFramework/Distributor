@@ -52,6 +52,8 @@ class CalculateAmphoraDelta(BaseNetworkTask):
         subnet = self.network_driver.get_subnet(loadbalancer.vip.subnet_id)
         desired_network_ids = {subnet.network_id}.union(
             CONF.controller_worker.amp_boot_network_list)
+        if CONF.controller_worker.amp_network != '':
+            desired_network_ids.add(CONF.controller_worker.amp_network)
 
         for pool in loadbalancer.pools:
             member_networks = [
