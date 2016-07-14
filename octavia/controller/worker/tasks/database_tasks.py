@@ -2668,6 +2668,21 @@ class ReloadDistributor(BaseDatabaseTask):
         pass
 
 
+class ReloadSharedDistributor(BaseDatabaseTask):
+    def execute(self):
+        """Get a shared distributor object from the database.
+
+        :param distributor_id: The distributor ID to lookup
+        :returns: The distributor object
+        """
+
+        return self.distributor_repo.get_shared_ready_distributor(
+            db_apis.get_session())
+
+    def revert(self, *args, **kwargs):
+        pass
+
+
 class MarkDistributorReadyInDB(BaseDatabaseTask):
     """This task will mark an amphora as ready in the database.
 

@@ -43,6 +43,7 @@ class ControllerWorker(base_taskflow.BaseTaskFlowEngine):
     def __init__(self):
 
         self._amphora_flows = amphora_flows.AmphoraFlows()
+
         self._health_monitor_flows = health_monitor_flows.HealthMonitorFlows()
         self._lb_flows = load_balancer_flows.LoadBalancerFlows()
         self._listener_flows = listener_flows.ListenerFlows()
@@ -79,6 +80,10 @@ class ControllerWorker(base_taskflow.BaseTaskFlowEngine):
                 amphora_cluster_flows.AmphoraClusterFlows())
 
         super(ControllerWorker, self).__init__()
+        self._topology = CONF.controller_worker.loadbalancer_topology
+        if self._topology == constants.TOPOLOGY_CLUSTER:
+            self._amphora_cluster_flows = (
+                amphora_cluster_flows.AmphoraClusterFlows())
 
     def create_amphora(self):
         """Creates an Amphora.
