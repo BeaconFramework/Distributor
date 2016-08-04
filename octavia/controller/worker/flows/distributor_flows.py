@@ -21,6 +21,8 @@ from octavia.common import constants
 from octavia.controller.worker.tasks import cert_task
 from octavia.controller.worker.tasks import compute_tasks
 from octavia.controller.worker.tasks import database_tasks
+from octavia.controller.worker.tasks import distributor_driver_tasks
+from octavia.controller.worker.tasks import network_tasks
 
 
 CONF = cfg.CONF
@@ -75,3 +77,33 @@ class DistributorFlows(object):
             requires=constants.DISTRIBUTOR))
 
         return create_distributor_flow
+
+    def create_distributor_networking_subflow(self):
+        new_net_subflow = linear_flow.Flow(constants.
+                                           DISTRIBUTOR_NETWORKING_SUBFLOW)
+
+        new_net_subflow.add(network_tasks.AllocateVIP(
+            requires=constants.LOADBALANCER,
+            provides=constants.VIP))
+
+        new_net_subflow.add(database_tasks.UpdateVIPAfterAllocation(
+            requires=(constants.LOADBALANCER_ID, constants.VIP),
+            provides=constants.LOADBALANCER))
+
+        new_net_subflow.add(network_tasks.PlugDistributorVIP(
+            requires=(constants.LOADBALANCER, constants.DISTRIBUTOR),
+            provides=constants.DISTRIBUTOR_MAC
+        ))
+
+        new_net_subflow.add(database_tasks.ReloadLoadBalancer(
+            name=constants.RELOAD_LB_AFTER_PLUG_VIP,
+            requires=constants.LOADBALANCER_ID,
+            provides=constants.LOADBALANCER))
+
+        new_net_subflow.add(distributor_driver_tasks.DistributorPostVIPPlug(
+            requires=(constants.DISTRIBUTOR, constants.LOADBALANCER,
+                      constants.DISTRIBUTOR_MAC,
+                      constants.CLUSTER_ALG_TYPE,
+                      constants.CLUSTER_MIN_SIZE)))
+
+        return new_net_subflow

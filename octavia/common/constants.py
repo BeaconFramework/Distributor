@@ -392,6 +392,7 @@ CENTOS = 'centos'
 DISTRIBUTOR = 'distributor'
 DISTRIBUTOR_ID = 'distributor_id'
 DISTRIBUTOR_DATA = 'distributor_data'
+DISTRIBUTOR_MAC = 'distributor_mac'
 DISTRIBUTOR_NETWORK_CONFIG = 'distributor_network_config'
 ALG_ACTIVE_ACTIVE = 'active_active'
 DISTRIBUTOR_NETWORKING_SUBFLOW = 'octavia-new-distributor-net-subflow'
@@ -427,3 +428,5 @@ SUPPORTED_DISTRIBUTOR_PROVISIONING_STATUSES = (DISTRIBUTOR_ACTIVE,
 SUPPORTED_DISTRIBUTOR_STATUSES = (DISTRIBUTOR_ALLOCATED, DISTRIBUTOR_BOOTING,
                                   DISTRIBUTOR_READY, DISTRIBUTOR_DELETED,
                                   DISTRIBUTOR_PENDING_DELETE)
+CLUSTER_ALG_TYPE = 'cluster_alg_type'
+CLUSTER_MIN_SIZE = 'cluster_min_size'

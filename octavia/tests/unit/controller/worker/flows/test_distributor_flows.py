@@ -13,6 +13,7 @@
 # under the License.
 #
 
+import mock
 from oslo_config import cfg
 from taskflow.patterns import linear_flow as flow
 
@@ -23,6 +24,7 @@ import octavia.tests.unit.base as base
 AUTH_VERSION = '2'
 
 
+@mock.patch('octavia.common.utils.get_network_driver')
 class TestDistributorFlows(base.TestCase):
 
     def setUp(self):
@@ -38,7 +40,7 @@ class TestDistributorFlows(base.TestCase):
         self.addCleanup(cfg.CONF.set_override, 'distributor_driver',
                         old_distributor_driver, group='active_active_cluster')
 
-    def test_get_create_distributor_flow(self):
+    def test_get_create_distributor_flow(self, mock_get_net_driver):
 
         distributor_flow = self.DistributorFlow.get_create_distributor_flow()
 
@@ -52,3 +54,14 @@ class TestDistributorFlows(base.TestCase):
 
         self.assertEqual(5, len(distributor_flow.provides))
         self.assertEqual(0, len(distributor_flow.requires))
+
+    def test_create_distributor_networking_subflow(self, mock_get_net_driver):
+        distributor_flow = (self.DistributorFlow.
+                            create_distributor_networking_subflow())
+        self.assertIsInstance(distributor_flow, flow.Flow)
+        self.assertIn(constants.LOADBALANCER, distributor_flow.requires)
+        self.assertIn(constants.LOADBALANCER_ID, distributor_flow.requires)
+        self.assertIn(constants.DISTRIBUTOR, distributor_flow.requires)
+        self.assertIn(constants.CLUSTER_ALG_TYPE, distributor_flow.requires)
+        self.assertIn(constants.CLUSTER_MIN_SIZE, distributor_flow.requires)
+        self.assertIn(constants.VIP, distributor_flow.provides)
