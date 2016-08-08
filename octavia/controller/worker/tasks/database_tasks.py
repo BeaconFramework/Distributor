@@ -43,6 +43,7 @@ class BaseDatabaseTask(task.Task):
     def __init__(self, **kwargs):
         self.repos = repo.Repositories()
         self.amphora_repo = repo.AmphoraRepository()
+        self.amphora_cluster_repo = repo.AmphoraClusterRepository()
         self.distributor_repo = repo.DistributorRepository()
         self.health_mon_repo = repo.HealthMonitorRepository()
         self.listener_repo = repo.ListenerRepository()
@@ -2711,3 +2712,126 @@ class MarkDistributorReadyInDB(BaseDatabaseTask):
                                      status=constants.DISTRIBUTOR_ERROR,
                                      compute_id=distributor.compute_id,
                                      lb_network_ip=distributor.lb_network_ip)
+
+
+class CreateAmphoraClusterInDB(BaseDatabaseTask):
+    """Task to create an initial cluster in the Database."""
+
+    def execute(self, distributor_id, loadbalancer_id, cluster_dict=None):
+        """Creates an amphora_cluster record in the database.
+
+        :param loadbalancer_id: id of load_balancer for the cluster
+        :param cluster_dict: Dictionary representation of a cluster
+        :return: string to represent
+                 octavia.common.data_models.AmphoraCluster
+        """
+
+        if not cluster_dict:
+            cluster_dict = {}
+
+        LOG.debug("Creating amphora cluster for loadbalancer id: %s ",
+                  loadbalancer_id)
+        # (removed) amphora_cluster =
+        self.repos.create_amphora_cluster_on_load_balancer(
+            db_apis.get_session(), loadbalancer_id, cluster_dict)
+        self.amphora_cluster_repo.associate(db_apis.get_session(),
+                                            distributor_id, loadbalancer_id)
+        return "cluster-" + str(loadbalancer_id)
+
+    def revert(self, result, *args, **kwargs):
+        if isinstance(result, failure.Failure):
+            # This task's execute failed, so nothing needed to be done to
+            # revert
+            return
+
+        # At this point the revert is being called because another task
+        # executed after this failed so we will need to do something and
+        # result is the cluster's id
+
+        LOG.warning(
+            _LW("Reverting create cluster in DB for cluster id %s "),
+            result)
+
+        # Delete the cluster for now. May want to just update LB status later
+        self.amphora_repo.delete(db_apis.get_session(), id=result)
+
+
+class UpdateAmphoraClusterInDB(BaseDatabaseTask):
+    """Update the Amphora Cluster in the DB.
+
+    Since sqlalchemy will likely retry by itself always revert if it fails
+    """
+
+    def execute(self, loadbalancer_id, update_dict):
+        """Update the amphora cluster in the DB
+
+        :param loadbalancer_id: The load_balancer_id of cluster to be updated
+        :param update_dict: The dictionary of updates to apply
+        :returns: None
+        """
+
+        LOG.debug("Update AmphoraCluster DB for "
+                  "loadbalancer_id: %s ", loadbalancer_id)
+        self.cluster_repo.update(db_apis.get_session(), loadbalancer_id,
+                                 **update_dict)
+
+    def revert(self, amphora_cluster, *args, **kwargs):
+        """Mark the cluster ERROR since the update couldn't happen
+
+        :returns: None
+        """
+
+        LOG.warning(_LW("Reverting update amphora_cluster in DB "
+                        "for amphora_cluster_id %s"), amphora_cluster.id)
+        self.cluster_repo.update(db_apis.get_session(), amphora_cluster.id,
+                                 enabled=0)
+
+
+class GetAmphoraClusterFromLoadbalancer(BaseDatabaseTask):
+    """Task to pull the cluster from a loadbalancer."""
+
+    def execute(self, loadbalancer):
+        """Task to pull the cluster from a loadbalancer.
+
+        :type loadbalancer: data_models.LoadBalancer
+        :rtype: data_models.AmphoraCluster
+        """
+        return loadbalancer.amphora_cluster
+
+    def revert(self, *args, **kwargs):
+        pass
+
+
+class DeleteAmphoraClusterInDB(BaseDatabaseTask):
+    """Delete the amphora_cluster in the DB.
+
+    Since sqlalchemy will likely retry by itself always revert if it fails
+    """
+
+    def execute(self, loadbalancer):
+        """Delete the amphora_cluster in DB
+
+        :param loadbalancer: The load_balanacer of the cluster to delete
+        :type loadbalancer: data_models.LoadBalancer
+        :returns: None
+        """
+
+        LOG.debug("DB delete amphora_cluster for load_balancer id: %s ",
+                  loadbalancer.id)
+        self.cluster_repo.delete(db_apis.get_session(),
+                                 load_balancer_id=loadbalancer.id)
+
+    def revert(self, loadbalancer, *args, **kwargs):
+        """Mark the amphora_cluster not enabled since the mark
+
+        active couldn't happen
+        :returns: None
+        """
+
+        LOG.debug("Reverting amphora cluster delete in DB "
+                  "for cluster on loadbalancer with id %s", loadbalancer.id)
+        update_dict = {'enabled': False}
+        self.cluster_repo.update(db_apis.get_session(),
+                                 loadbalancer_id=loadbalancer.id,
+
+                                 **update_dict)
