@@ -45,6 +45,14 @@ class BaseDistributorTask(task.Task):
         self.loadbalancer_repo = repo.LoadBalancerRepository()
 
 
+class DistributorGetInfo(BaseDistributorTask):
+    """Task to get information on a distributor."""
+
+    def execute(self, distributor):
+        """Execute get_info routine for a distributor."""
+        self.distributor_driver.get_info(distributor)
+
+
 class DistributorPostVIPPlug(BaseDistributorTask):
     """Task to notify the distributor post VIP plug."""
 
@@ -70,3 +78,33 @@ class DistributorPostVIPPlug(BaseDistributorTask):
         self.loadbalancer_repo.update(db_apis.get_session(),
                                       id=loadbalancer.id,
                                       status=constants.ERROR)
+
+
+class DistributorRegisterAmphora(BaseDistributorTask):
+    def execute(self, distributor, loadbalancer, amphora, cluster_alg_type,
+                cluster_min_size):
+        load_balancer = self.loadbalancer_repo.get(
+            db_apis.get_session(), id=loadbalancer.id)
+        self.distributor_driver.register_amphora(
+            distributor, load_balancer,
+            amphora, cluster_alg_type, cluster_min_size)
+
+    def revert(self, result, loadbalancer, *args, **kwargs):
+        if isinstance(result, failure.Failure):
+            return
+        LOG.warning(_LW("Reverting register amphora."))
+
+
+class DistributorUnregisterAmphora(BaseDistributorTask):
+    def execute(self, distributor, loadbalancer, amphora, cluster_alg_type,
+                cluster_min_size):
+        load_balancer = self.loadbalancer_repo.get(db_apis.get_session(),
+                                                   id=loadbalancer.id)
+        self.distributor_driver.register_amphora(distributor, load_balancer,
+                                                 amphora, cluster_alg_type,
+                                                 cluster_min_size)
+
+    def revert(self, result, loadbalancer, *args, **kwargs):
+        if isinstance(result, failure.Failure):
+            return
+        LOG.warning(_LW("Reverting register amphora."))
