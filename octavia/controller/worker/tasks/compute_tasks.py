@@ -196,10 +196,18 @@ class DistributorComputeWait(BaseComputeTask):
         :raises: Generic exception if the distributor is not active
         :returns: An amphora object
         """
-        time.sleep(CONF.controller_worker.amp_active_wait_sec)
-        distributor = self.compute.get_distributor(compute_id)
-        if distributor.status == constants.DISTRIBUTOR_ACTIVE:
-            return distributor
+        # time.sleep(30)
+        for i in range(CONF.controller_worker.amp_active_retries):
+            distributor = self.compute.get_distributor(compute_id)
+            # TODO(Lera) - add intermediate states?
+            # which state here to return???
+            if distributor.status == constants.ACTIVE:
+                distributor.status = constants.DISTRIBUTOR_ACTIVE
+                return distributor
+            elif distributor.status == constants.ERROR:
+                distributor.status = constants.DISTRIBUTOR_ERROR
+                raise exceptions.ComputeBuildException()
+            time.sleep(CONF.controller_worker.amp_active_wait_sec)
 
         raise exceptions.ComputeWaitTimeoutException()
 

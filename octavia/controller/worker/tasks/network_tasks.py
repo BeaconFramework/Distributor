@@ -448,6 +448,7 @@ class GetAmphoraMacAddr(BaseNetworkTask):
 
     def execute(self, amphora):
         LOG.debug("GetAmphoraMacAddr start")
+
         vrrp_port = self.network_driver.get_port(amphora.vrrp_port_id)
         amphora_mac = vrrp_port.mac_address
         LOG.debug("GetAmphoraMacAddr: amphora_id:%s, mac:%s ",

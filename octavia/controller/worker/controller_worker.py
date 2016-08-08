@@ -80,10 +80,6 @@ class ControllerWorker(base_taskflow.BaseTaskFlowEngine):
                 amphora_cluster_flows.AmphoraClusterFlows())
 
         super(ControllerWorker, self).__init__()
-        self._topology = CONF.controller_worker.loadbalancer_topology
-        if self._topology == constants.TOPOLOGY_CLUSTER:
-            self._amphora_cluster_flows = (
-                amphora_cluster_flows.AmphoraClusterFlows())
 
     def create_amphora(self):
         """Creates an Amphora.
@@ -260,6 +256,32 @@ class ControllerWorker(base_taskflow.BaseTaskFlowEngine):
                                                             [listener]})
         with tf_logging.DynamicLoggingListener(update_listener_tf, log=LOG):
             update_listener_tf.run()
+
+    def _get_create_load_balancer_flows(self, load_balancer, topology):
+        # if listeners exist then this was a request to create many resources
+        # at once, so different logic will be needed.
+        post_amp_prefix = 'post-amphora-association'
+        if load_balancer.listeners:
+            allocate_amphorae_flow, post_lb_amp_assoc_flow = (
+                self._lb_flows.get_create_load_balancer_graph_flows(
+                    topology, post_amp_prefix
+                )
+            )
+        # TODO(Lera): case in which listeners exist???
+        elif topology == constants.TOPOLOGY_CLUSTER:
+            allocate_amphorae_flow = (self._amphora_cluster_flows.
+                                      get_amphora_cluster_for_lb_subflow())
+            post_lb_amp_assoc_flow = (self._amphora_cluster_flows.
+                                      get_post_cluster_for_lb_assoc_flow())
+        else:
+            allocate_amphorae_flow = (
+                self._lb_flows.get_create_load_balancer_flow(
+                    topology=topology))
+            post_lb_amp_assoc_flow = (
+                self._lb_flows.get_post_lb_amp_association_flow(
+                    prefix=post_amp_prefix, topology=topology))
+
+        return allocate_amphorae_flow, post_lb_amp_assoc_flow
 
     def create_load_balancer(self, load_balancer_id):
         """Creates a load balancer by allocating Amphorae.

@@ -110,7 +110,7 @@ function octavia_configure {
     iniset $OCTAVIA_CONF service_auth signing_dir $signing_dir
     iniset $OCTAVIA_CONF service_auth memcached_servers $SERVICE_HOST:11211
 
-    iniset $OCTAVIA_CONF active_active_cluster distributor_flavor_id ${OCTAVIA_DISTRIBUTOR_FLAVOR_ID}
+    #iniset $OCTAVIA_CONF active_active_cluster distributor_flavor_id ${OCTAVIA_DISTRIBUTOR_FLAVOR_ID}
 
     # Setting other required default options
     iniset $OCTAVIA_CONF controller_worker amphora_driver ${OCTAVIA_AMPHORA_DRIVER}
@@ -312,7 +312,10 @@ function configure_octavia_api_haproxy {
 }
 
 function create_distributor_flavor {
-    nova flavor-create --is-public False m1.distributor ${OCTAVIA_DISTRIBUTOR_FLAVOR_ID} 1024 10 1
+    #nova flavor-create --is-public False m1.distributor ${OCTAVIA_DISTRIBUTOR_FLAVOR_ID} 1024 10 1
+    openstack flavor create --id auto --ram 1024 --disk 2 --vcpus 1 --private m1.distributor -f value -c id || true
+    distributor_flavor_id=$(openstack flavor list --all -c ID -c Name | awk ' / m1.distributor / {print $2}')
+    iniset $OCTAVIA_CONF active_active_cluster distributor_flavor_id $distributor_flavor_id
 }
 
 function octavia_start {

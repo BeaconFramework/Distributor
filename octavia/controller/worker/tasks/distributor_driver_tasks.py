@@ -81,13 +81,14 @@ class DistributorPostVIPPlug(BaseDistributorTask):
 
 
 class DistributorRegisterAmphora(BaseDistributorTask):
-    def execute(self, distributor, loadbalancer, amphora, cluster_alg_type,
-                cluster_min_size):
+    def execute(self, distributor, loadbalancer, amphora,
+                cluster_alg_type, cluster_min_size):
         load_balancer = self.loadbalancer_repo.get(
             db_apis.get_session(), id=loadbalancer.id)
         self.distributor_driver.register_amphora(
             distributor, load_balancer,
-            amphora, cluster_alg_type, cluster_min_size)
+            amphora, cluster_alg_type,
+            cluster_min_size)
 
     def revert(self, result, loadbalancer, *args, **kwargs):
         if isinstance(result, failure.Failure):
@@ -96,8 +97,8 @@ class DistributorRegisterAmphora(BaseDistributorTask):
 
 
 class DistributorUnregisterAmphora(BaseDistributorTask):
-    def execute(self, distributor, loadbalancer, amphora, cluster_alg_type,
-                cluster_min_size):
+    def execute(self, distributor, loadbalancer, amphora,
+                cluster_alg_type, cluster_min_size):
         load_balancer = self.loadbalancer_repo.get(db_apis.get_session(),
                                                    id=loadbalancer.id)
         self.distributor_driver.register_amphora(distributor, load_balancer,

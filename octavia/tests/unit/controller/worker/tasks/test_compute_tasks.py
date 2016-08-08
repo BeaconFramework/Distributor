@@ -475,14 +475,13 @@ class TestComputeTasks(base.TestCase):
 
         computewait = compute_tasks.DistributorComputeWait()
         computewait.execute(COMPUTE_ID)
+        self.assertRaises(exceptions.ComputeWaitTimeoutException,
+                          computewait.execute,
+                          _amphora_mock)
 
         mock_driver.get_distributor.assert_called_once_with(COMPUTE_ID)
 
         _amphora_mock.status = constants.DISTRIBUTOR_DELETED
-
-        self.assertRaises(exceptions.ComputeWaitTimeoutException,
-                          computewait.execute,
-                          _amphora_mock)
 
     @mock.patch('stevedore.driver.DriverManager.driver')
     @mock.patch('time.sleep')
@@ -496,14 +495,13 @@ class TestComputeTasks(base.TestCase):
 
         computewait = compute_tasks.ComputeWait()
         computewait.execute(COMPUTE_ID)
+        self.assertRaises(exceptions.ComputeBuildException,
+                          computewait.execute,
+                          _amphora_mock)
 
         mock_driver.get_amphora.assert_called_once_with(COMPUTE_ID)
 
         _amphora_mock.status = constants.ERROR
-
-        self.assertRaises(exceptions.ComputeBuildException,
-                          computewait.execute,
-                          _amphora_mock)
 
     @mock.patch('stevedore.driver.DriverManager.driver')
     def test_delete_amphorae_on_load_balancer(self, mock_driver):

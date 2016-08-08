@@ -185,6 +185,18 @@ class AmphoraFlows(object):
             create_amp_for_lb_subflow.add(database_tasks.MarkAmphoraBackupInDB(
                 name=sf_name + '-' + constants.MARK_AMP_BACKUP_INDB,
                 requires=constants.AMPHORA))
+
+        elif role == constants.ROLE_ACTIVE_ACTIVE:
+            create_amp_for_lb_subflow.add(
+                database_tasks.MarkAmphoraActiveActiveInDB(
+                    name=sf_name + '-' + constants.MARK_AMP_ACTIVE_ACTIVE_INDB,
+                    requires=constants.AMPHORA))
+        elif role == constants.ROLE_ACTIVE_STANDBY:
+            create_amp_for_lb_subflow.add(
+                database_tasks.MarkAmphoraActiveStandbyInDB(
+                    name=sf_name + '-' +
+                    constants.MARK_AMP_ACTIVE_STANDBY_INDB,
+                    requires=constants.AMPHORA))
         elif role == constants.ROLE_STANDALONE:
             create_amp_for_lb_subflow.add(
                 database_tasks.MarkAmphoraStandAloneInDB(
@@ -192,6 +204,9 @@ class AmphoraFlows(object):
                     requires=constants.AMPHORA))
 
         return create_amp_for_lb_subflow
+
+    def get_amphora_for_cluster_subflow(self, prefix, role):
+        return self._get_create_amp_for_lb_subflow(prefix, role)
 
     def _allocate_amp_to_lb_decider(self, history):
         """decides if the lb shall be mapped to a spare amphora

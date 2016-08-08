@@ -241,10 +241,10 @@ active_active_cluster_opts = [
 
 controller_worker_opts = [
     cfg.IntOpt('amp_active_retries',
-               default=10,
+               default=3,
                help=_('Retry attempts to wait for Amphora to become active')),
     cfg.IntOpt('amp_active_wait_sec',
-               default=10,
+               default=30,
                help=_('Seconds to wait between checks on whether an Amphora '
                       'has become active')),
     cfg.StrOpt('amp_flavor_id',
@@ -296,11 +296,12 @@ controller_worker_opts = [
                default='network_noop_driver',
                help=_('Name of the network driver to use')),
     cfg.StrOpt('loadbalancer_topology',
-               default=constants.TOPOLOGY_SINGLE,
+               default=constants.TOPOLOGY_CLUSTER,
                choices=constants.SUPPORTED_LB_TOPOLOGIES,
                help=_('Load balancer topology configuration. '
                       'SINGLE - One amphora per load balancer. '
-                      'ACTIVE_STANDBY - Two amphora per load balancer.')),
+                      'ACTIVE_STANDBY - Two amphora per load balancer.'
+                      'CLUSTER - Active-Active n+1 Topology.')),
     cfg.BoolOpt('user_data_config_drive', default=False,
                 help=_('If True, build cloud-init user-data that is passed '
                        'to the config drive on Amphora boot instead of '

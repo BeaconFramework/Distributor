@@ -111,6 +111,27 @@ class BaseNeutronDriver(base.AbstractNetworkDriver):
         except Exception as e:
             raise base.NetworkException(str(e))
 
+    # def _disable_security_group_for_port(self, port_id):
+        # port_update = {'port': {'allowed_address_pairs': '',
+        #                         'security_groups': ''}}
+        # try:
+        #     self.neutron_client.update_port(port_id, port_update)
+        # except neutron_client_exceptions.PortNotFoundClient as e:
+        #     LOG.exception("Exception in _disable_security_group_for_port: "
+        #                   "{0} Moving on to disable port security".format(
+        #                       e.message))
+
+        # port_update = {'port': {'port_security_enabled': 'False'}}
+        # try:
+        #     self.neutron_client.update_port(port_id, port_update)
+        # except neutron_client_exceptions.PortNotFoundClient as e:
+        #     raise base.PortNotFound(e.message)
+        # except Exception as e:
+        #     raise base.NetworkException(str(e))
+        # pass
+    def _disable_security_group_for_port(self, port_id, vip):
+        self._add_allowed_address_pair_to_port(port_id, '0.0.0.0/0')
+
     def _create_security_group(self, name):
         new_sec_grp = {'security_group': {'name': name}}
         sec_grp = self.neutron_client.create_security_group(new_sec_grp)
@@ -182,9 +203,6 @@ class BaseNeutronDriver(base.AbstractNetworkDriver):
                 resource_type=resource_type, filters=filters)
             LOG.exception(message)
             raise base.NetworkException(message)
-
-    def _disable_security_group_for_port(self, port_id, vip):
-        self._add_allowed_address_pair_to_port(port_id, '0.0.0.0/0')
 
     def get_network(self, network_id):
         return self._get_resource('network', network_id)

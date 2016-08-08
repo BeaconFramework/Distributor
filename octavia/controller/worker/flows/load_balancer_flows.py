@@ -72,10 +72,12 @@ class LoadBalancerFlows(object):
             LOG.error(_LE("Unknown topology: %s.  Unable to build load "
                           "balancer."), topology)
             raise exceptions.InvalidTopology(topology=topology)
-
-        post_amp_prefix = constants.POST_LB_AMP_ASSOCIATION_SUBFLOW
-        lb_create_flow.add(
-            self.get_post_lb_amp_association_flow(post_amp_prefix, topology))
+        # LERA
+        if topology != constants.TOPOLOGY_CLUSTER:
+            post_amp_prefix = constants.POST_LB_AMP_ASSOCIATION_SUBFLOW
+            lb_create_flow.add(
+                self.get_post_lb_amp_association_flow(post_amp_prefix,
+                                                      topology))
 
         if listeners:
             lb_create_flow.add(*self._create_listeners_flow())
@@ -318,7 +320,7 @@ class LoadBalancerFlows(object):
         new_LB_net_subflow.add(database_tasks.UpdateAmphoraVIPData(
             requires=constants.AMPS_DATA))
         new_LB_net_subflow.add(database_tasks.ReloadLoadBalancer(
-            name=constants.RELOAD_LB_AFTER_PLUG_VIP,
+            name=constants.RELOAD_LB_AFTER_AMP_PLUG_VIP,
             requires=constants.LOADBALANCER_ID,
             provides=constants.LOADBALANCER))
         new_LB_net_subflow.add(network_tasks.GetAmphoraeNetworkConfigs(

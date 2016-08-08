@@ -615,33 +615,33 @@ class Repositories(object):
         session.expire_all()
         return self.load_balancer.get(session, id=lb_dm.id)
 
-        def create_amphora_cluster_on_load_balancer(self, session,
-                                                    load_balancer_id,
-                                                    cluster_dict=None):
-            """Inserts an Amphora_cluster into the database.
+    def create_amphora_cluster_on_load_balancer(self, session,
+                                                load_balancer_id,
+                                                cluster_dict=None):
+        """Inserts an Amphora_cluster into the database.
 
-            :param session: A Sql Alchemy database session.
-            :param load_balancer_id: id of the load_balancer the cluster
-            will be referenced by
-            :param cluster_dict: Dictionary representation of a cluster
-            :return: octavia.common.data_models.AmphoraCluster
-            """
+        :param session: A Sql Alchemy database session.
+        :param load_balancer_id: id of the load_balancer the cluster
+        will be referenced by
+        :param cluster_dict: Dictionary representation of a cluster
+        :return: octavia.common.data_models.AmphoraCluster
+        """
 
-            if not cluster_dict:
-                cluster_dict = {}
+        if not cluster_dict:
+            cluster_dict = {}
 
-                with session.begin(subtransactions=True):
-                    if not cluster_dict.get('id'):
-                        cluster_dict['load_balancer_id'] = load_balancer_id
-                        # try to use same id as load_balancer
-                        if not self.amphora_cluster.exists(session,
-                                                           load_balancer_id):
-                            cluster_dict['id'] = load_balancer_id
-                        else:
-                            cluster_dict['id'] = uuidutils.generate_uuid()
+            with session.begin(subtransactions=True):
+                if not cluster_dict.get('id'):
+                    cluster_dict['load_balancer_id'] = load_balancer_id
+                    # try to use same id as load_balancer
+                    if not self.amphora_cluster.exists(session,
+                                                       load_balancer_id):
+                        cluster_dict['id'] = load_balancer_id
+                    else:
+                        cluster_dict['id'] = uuidutils.generate_uuid()
                     db_cluster = models.AmphoraCluster(**cluster_dict)
                     session.add(db_cluster)
-                return db_cluster.__data_model__
+        return db_cluster.__data_model__
 
 
 class LoadBalancerRepository(BaseRepository):

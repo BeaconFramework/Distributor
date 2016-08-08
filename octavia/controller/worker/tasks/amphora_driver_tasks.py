@@ -320,3 +320,8 @@ class AmphoraVRRPStart(BaseAmphoraTask):
         self.amphora_driver.start_vrrp_service(loadbalancer)
         LOG.debug("Started VRRP of loadbalancer %s amphorae",
                   loadbalancer.id)
+
+
+class AmphoraPostDisableARP(BaseAmphoraTask):
+    def execute(self, amphora, amphora_mac):
+        pass

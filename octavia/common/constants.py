@@ -56,6 +56,8 @@ AMPHORA_BOOTING = 'BOOTING'
 # Amphora is ready to be allocated to a load balancer
 AMPHORA_READY = 'READY'
 
+CURR_AMPHORA_ITER = 'curr_amphora_iter'
+
 ACTIVE = 'ACTIVE'
 PENDING_DELETE = 'PENDING_DELETE'
 PENDING_UPDATE = 'PENDING_UPDATE'
@@ -139,6 +141,8 @@ HTTP_QUOTED_HEADER_VALUE_REGEX = (r'\A"[a-zA-Z0-9 \t'
 
 # Task/Flow constants
 AMPHORA = 'amphora'
+AMPHORA_MAC = 'amphora_mac'
+DISABLE_ARP = 'disable_arp'
 FAILED_AMPHORA = 'failed_amphora'
 FAILOVER_AMPHORA = 'failover_amphora'
 AMPHORAE = 'amphorae'
@@ -184,6 +188,7 @@ CREATE_AMPHORA_FOR_LB_FLOW = 'octavia-create-amp-for-lb-flow'
 CREATE_HEALTH_MONITOR_FLOW = 'octavia-create-health-monitor-flow'
 CREATE_LISTENER_FLOW = 'octavia-create-listener_flow'
 PRE_CREATE_LOADBALANCER_FLOW = 'octavia-pre-create-loadbalancer-flow'
+PRE_CREATE_AMPHORAE_PER_CLUSTER_FLOW = 'octavia-pre-creat-amp-per-cluster-flow'
 CREATE_SERVER_GROUP_FLOW = 'octavia-create-server-group-flow'
 UPDATE_LB_SERVERGROUPID_FLOW = 'octavia-update-lb-server-group-id-flow'
 CREATE_LISTENERS_FLOW = 'octavia-create-all-listeners-flow'
@@ -248,6 +253,8 @@ MARK_LB_ACTIVE_INDB = 'octavia-mark-lb-active-indb'
 MARK_AMP_MASTER_INDB = 'octavia-mark-amp-master-indb'
 MARK_AMP_BACKUP_INDB = 'octavia-mark-amp-backup-indb'
 MARK_AMP_STANDALONE_INDB = 'octavia-mark-amp-standalone-indb'
+MARK_AMP_ACTIVE_ACTIVE_INDB = 'octavia-mark-amp-active-active-indb'
+MARK_AMP_ACTIVE_STANDBY_INDB = 'octavia-mark-amp-active-standby-indb'
 GET_VRRP_SUBFLOW = 'octavia-get-vrrp-subflow'
 AMP_VRRP_UPDATE = 'octavia-amphora-vrrp-update'
 AMP_VRRP_START = 'octavia-amphora-vrrp-start'
@@ -261,7 +268,9 @@ GENERATE_SERVER_PEM_TASK = 'GenerateServerPEMTask'
 # Task Names
 RELOAD_LB_AFTER_AMP_ASSOC = 'reload-lb-after-amp-assoc'
 RELOAD_LB_AFTER_AMP_ASSOC_FULL_GRAPH = 'reload-lb-after-amp-assoc-full-graph'
+RELOAD_LB_AFTER_AMPS_CREATE = 'reload-lb-after-amps-create'
 RELOAD_LB_AFTER_PLUG_VIP = 'reload-lb-after-plug-vip'
+RELOAD_LB_AFTER_AMP_PLUG_VIP = 'reload-lb-after-amp-plug-vip'
 
 NOVA_1 = '1.1'
 NOVA_21 = '2.1'
@@ -281,10 +290,13 @@ TOPOLOGY_CLUSTER = 'CLUSTER'
 ROLE_MASTER = 'MASTER'
 ROLE_BACKUP = 'BACKUP'
 ROLE_STANDALONE = 'STANDALONE'
+ROLE_ACTIVE_ACTIVE = 'ACTIVE_ACTIVE'
+ROLE_ACTIVE_STANDBY = 'ACTIVE_STANDBY'
 
 SUPPORTED_LB_TOPOLOGIES = (TOPOLOGY_ACTIVE_STANDBY, TOPOLOGY_SINGLE,
                            TOPOLOGY_CLUSTER)
-SUPPORTED_AMPHORA_ROLES = (ROLE_BACKUP, ROLE_MASTER, ROLE_STANDALONE)
+SUPPORTED_AMPHORA_ROLES = (ROLE_BACKUP, ROLE_MASTER, ROLE_STANDALONE,
+                           ROLE_ACTIVE_ACTIVE, ROLE_ACTIVE_STANDBY)
 
 TOPOLOGY_STATUS_OK = 'OK'
 
@@ -394,8 +406,12 @@ DISTRIBUTOR_ID = 'distributor_id'
 DISTRIBUTOR_DATA = 'distributor_data'
 DISTRIBUTOR_MAC = 'distributor_mac'
 DISTRIBUTOR_NETWORK_CONFIG = 'distributor_network_config'
+CLUSTER_ALG_EXTRA = 'cluster_alg_extra'
 ALG_ACTIVE_ACTIVE = 'active_active'
 DISTRIBUTOR_NETWORKING_SUBFLOW = 'octavia-new-distributor-net-subflow'
+DISTRIBUTOR_REGISTER_AMP = 'distributor-register-amphora'
+AMPHORA_NETWORKING_SUBFLOW = 'octavia-amphora-net-subflow'
+
 CREATE_DISTRIBUTOR_FLOW = 'octavia-create-distributor-flow'
 WAIT_FOR_DISTRIBUTOR = 'wait-for-distributor'
 RELOAD_LB_BEFORE_PLUG_VIP_TO_DISTRIBUTOR = (
@@ -430,3 +446,5 @@ SUPPORTED_DISTRIBUTOR_STATUSES = (DISTRIBUTOR_ALLOCATED, DISTRIBUTOR_BOOTING,
                                   DISTRIBUTOR_PENDING_DELETE)
 CLUSTER_ALG_TYPE = 'cluster_alg_type'
 CLUSTER_MIN_SIZE = 'cluster_min_size'
+ADD_CLUSTER_ALG_EXTRA = (
+    'octavia-create-amp-cluster-alg-extra')

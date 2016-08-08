@@ -15,7 +15,7 @@
 
 from oslo_config import cfg
 from taskflow.patterns import linear_flow
-from taskflow import retry
+# from taskflow import retry
 
 from octavia.common import constants
 from octavia.controller.worker.tasks import cert_task
@@ -51,6 +51,10 @@ class DistributorFlows(object):
             provides=constants.DISTRIBUTOR_ID))
         create_distributor_flow.add(cert_task.GenerateDistributorServerPEMTask(
             provides=constants.SERVER_PEM))
+        create_distributor_flow.add(
+            database_tasks.UpdateDistributorDBCertExpiration(
+                requires=(constants.DISTRIBUTOR_ID, constants.SERVER_PEM)))
+
         create_distributor_flow.add(compute_tasks.CertDistributorComputeCreate(
             requires=(constants.DISTRIBUTOR_ID, constants.SERVER_PEM),
             provides=constants.COMPUTE_ID))
@@ -58,6 +62,7 @@ class DistributorFlows(object):
         create_distributor_flow.add(database_tasks.MarkDistributorBootingInDB(
             requires=(constants.DISTRIBUTOR_ID, constants.COMPUTE_ID)))
 
+        '''
         wait_flow = linear_flow.Flow(constants.WAIT_FOR_DISTRIBUTOR,
                                      retry=retry.Times(CONF.
                                                        controller_worker.
@@ -68,7 +73,15 @@ class DistributorFlows(object):
         wait_flow.add(database_tasks.UpdateDistributorInfo(
             requires=(constants.DISTRIBUTOR_ID, constants.COMPUTE_OBJ),
             provides=constants.DISTRIBUTOR))
-        create_distributor_flow.add(wait_flow)
+        create_distributor_flow.add(wait_flow)'''
+
+        create_distributor_flow.add(compute_tasks.DistributorComputeWait(
+            requires=constants.COMPUTE_ID,
+            provides=constants.COMPUTE_OBJ))
+        create_distributor_flow.add(database_tasks.UpdateDistributorInfo(
+            requires=(constants.DISTRIBUTOR_ID, constants.COMPUTE_OBJ),
+            provides=constants.DISTRIBUTOR))
+
         create_distributor_flow.add(database_tasks.ReloadDistributor(
             requires=constants.DISTRIBUTOR_ID,
             provides=constants.DISTRIBUTOR))
@@ -96,10 +109,11 @@ class DistributorFlows(object):
         ))
 
         new_net_subflow.add(database_tasks.ReloadLoadBalancer(
-            name=constants.RELOAD_LB_AFTER_PLUG_VIP,
+            name=constants.RELOAD_LB_BEFORE_PLUG_VIP_TO_DISTRIBUTOR,
             requires=constants.LOADBALANCER_ID,
             provides=constants.LOADBALANCER))
 
+        # TODO(Lera): check how we get CLUSTER_ALG_EXTRA
         new_net_subflow.add(distributor_driver_tasks.DistributorPostVIPPlug(
             requires=(constants.DISTRIBUTOR, constants.LOADBALANCER,
                       constants.DISTRIBUTOR_MAC,

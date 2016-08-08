@@ -36,5 +36,5 @@ class TestAmphoraClusterFlows(base.TestCase):
         self.assertIn(constants.LOADBALANCER, amp_cluster_flow.provides)
         self.assertIn(constants.LOADBALANCER_ID, amp_cluster_flow.requires)
 
-        self.assertEqual(1, len(amp_cluster_flow.provides))
+        self.assertEqual(11, len(amp_cluster_flow.provides))
         self.assertEqual(1, len(amp_cluster_flow.requires))

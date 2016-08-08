@@ -609,6 +609,48 @@ class MarkAmphoraStandAloneInDB(_MarkAmphoraRoleAndPriorityInDB):
         self._revert(result, amphora, *args, **kwargs)
 
 
+class MarkAmphoraActiveActiveInDB(_MarkAmphoraRoleAndPriorityInDB):
+    """Alter the amphora role to: MASTER."""
+
+    def execute(self, amphora):
+        """Mark amphora as ActiveActive in db.
+
+        :param amphora: Amphora to update role.
+        :returns: None
+        """
+        amp_role = constants.ROLE_ACTIVE_ACTIVE
+        self._execute(amphora, amp_role, constants.ROLE_MASTER_PRIORITY)
+
+    def revert(self, result, amphora, *args, **kwargs):
+        """Removes amphora role association.
+
+        :param amphora: Amphora to update role.
+        :returns: None
+        """
+        self._revert(result, amphora, *args, **kwargs)
+
+
+class MarkAmphoraActiveStandbyInDB(_MarkAmphoraRoleAndPriorityInDB):
+    """Alter the amphora role to: ActiveStandby."""
+
+    def execute(self, amphora):
+        """Mark amphora as MASTER in db.
+
+        :param amphora: Amphora to update role.
+        :returns: None
+        """
+        amp_role = constants.ROLE_ACTIVE_STANDBY
+        self._execute(amphora, amp_role, constants.ROLE_BACKUP_PRIORITY)
+
+    def revert(self, result, amphora, *args, **kwargs):
+        """Removes amphora role association.
+
+        :param amphora: Amphora to update role.
+        :returns: None
+        """
+        self._revert(result, amphora, *args, **kwargs)
+
+
 class MarkAmphoraAllocatedInDB(BaseDatabaseTask):
     """Will mark an amphora as allocated to a load balancer in the database.
 
@@ -2714,10 +2756,29 @@ class MarkDistributorReadyInDB(BaseDatabaseTask):
                                      lb_network_ip=distributor.lb_network_ip)
 
 
+class UpdateDistributorDBCertExpiration(BaseDatabaseTask):
+    """Update the amphora expiration date with new cert file date."""
+
+    def execute(self, distributor_id, server_pem):
+        """Update the amphora expiration date with new cert file date.
+
+        :param amphora_id: Id of the amphora to update
+        :param server_pem: Certificate in PEM format
+        :returns: None
+        """
+
+        LOG.debug("Update DB cert expiry date of amphora id: %s",
+                  distributor_id)
+        cert_expiration = cert_parser.get_cert_expiration(server_pem)
+        LOG.debug("Certificate expiration date is %s ", cert_expiration)
+        # self.distributor_repo.update(db_apis.get_session(), distributor_id,
+        #                              cert_expiration=cert_expiration)
+
+
 class CreateAmphoraClusterInDB(BaseDatabaseTask):
     """Task to create an initial cluster in the Database."""
 
-    def execute(self, distributor_id, loadbalancer_id, cluster_dict=None):
+    def execute(self, distributor, loadbalancer, cluster_dict=None):
         """Creates an amphora_cluster record in the database.
 
         :param loadbalancer_id: id of load_balancer for the cluster
@@ -2730,13 +2791,12 @@ class CreateAmphoraClusterInDB(BaseDatabaseTask):
             cluster_dict = {}
 
         LOG.debug("Creating amphora cluster for loadbalancer id: %s ",
-                  loadbalancer_id)
-        # (removed) amphora_cluster =
-        self.repos.create_amphora_cluster_on_load_balancer(
-            db_apis.get_session(), loadbalancer_id, cluster_dict)
+                  loadbalancer.id)
+        amphora_cluster = self.repos.create_amphora_cluster_on_load_balancer(
+            db_apis.get_session(), loadbalancer.id, cluster_dict)
         self.amphora_cluster_repo.associate(db_apis.get_session(),
-                                            distributor_id, loadbalancer_id)
-        return "cluster-" + str(loadbalancer_id)
+                                            distributor.id, loadbalancer.id)
+        return amphora_cluster
 
     def revert(self, result, *args, **kwargs):
         if isinstance(result, failure.Failure):
