@@ -135,7 +135,7 @@ New Exceptions defined in the octavia.network package:
 * SubnetNotFound
 * NetworkNotFound
 * VIPConfigurationNotFound
-* AmphoraNotFound
+* NodeNotFound
 
 
 This class defines the methods for a fully functional network driver.
@@ -190,7 +190,7 @@ class AbstractNetworkDriver
     * network_id = id of the network to attach
     * ip_address = ip address to attempt to be assigned to interface
     * returns Interface instance
-    * raises PlugNetworkException, AmphoraNotFound, NetworkNotFound
+    * raises PlugNetworkException, NodeNotFound, NetworkNotFound
 
 * unplug_network(compute_id, network_id, ip_address=None)
 
@@ -200,7 +200,7 @@ class AbstractNetworkDriver
     * network_id = id of network to unplug amphora
     * ip_address = ip address of interface to unplug
     * returns None
-    * raises UnplugNetworkException, AmphoraNotFound, NetworkNotFound,
+    * raises UnplugNetworkException, NodeNotFound, NetworkNotFound,
              NetworkException
 
 * get_plugged_networks(compute_id):

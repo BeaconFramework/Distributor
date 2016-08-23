@@ -401,7 +401,7 @@ class TestAllowedAddressPairsDriver(base.TestCase):
         interface_attach = self.driver.nova_client.servers.interface_attach
         interface_attach.side_effect = nova_exceptions.NotFound(
             404, message='Instance not found')
-        self.assertRaises(network_base.AmphoraNotFound,
+        self.assertRaises(network_base.NodeNotFound,
                           self.driver.plug_network,
                           t_constants.MOCK_COMPUTE_ID, net_id)
 
@@ -440,7 +440,7 @@ class TestAllowedAddressPairsDriver(base.TestCase):
         net_id = t_constants.MOCK_NOVA_INTERFACE.net_id
         list_ports = self.driver.neutron_client.list_ports
         list_ports.return_value = {'ports': []}
-        self.assertRaises(network_base.AmphoraNotFound,
+        self.assertRaises(network_base.NodeNotFound,
                           self.driver.unplug_network,
                           t_constants.MOCK_COMPUTE_ID, net_id)
 
@@ -651,7 +651,7 @@ class TestAllowedAddressPairsDriver(base.TestCase):
         # NotFound cases
         interface_attach.side_effect = nova_exceptions.NotFound(
             1, message='Instance')
-        self.assertRaises(network_base.AmphoraNotFound,
+        self.assertRaises(network_base.NodeNotFound,
                           self.driver.plug_port,
                           amphora,
                           port)

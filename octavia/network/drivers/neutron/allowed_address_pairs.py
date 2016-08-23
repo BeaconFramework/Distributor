@@ -1,4 +1,5 @@
 #    Copyright 2014 Rackspace
+#    Copyright 2016 IBM Corp.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
@@ -80,26 +81,28 @@ class AllowedAddressPairsDriver(neutron_base.BaseNeutronDriver):
             if interface.network_id == network_id:
                 return interface
 
-    def _plug_amphora_vip(self, amphora, subnet):
-        # We need a vip port owned by Octavia for Act/Stby and failover
+    def _plug_vip(self, node, network_id):
         try:
-            port = {'port': {'name': 'octavia-lb-vrrp-' + amphora.id,
-                             'network_id': subnet.network_id,
-                             'fixed_ips': [{'subnet_id': subnet.id}],
+            port = {'port': {'name': 'octavia-lb-vip-' +
+                                     node.compute_id,
+                             'network_id': network_id,
                              'admin_state_up': True,
                              'device_owner': OCTAVIA_OWNER}}
             new_port = self.neutron_client.create_port(port)
             new_port = utils.convert_port_dict_to_model(new_port)
 
-            LOG.debug('Created vip port: {port_id} for amphora: {amp}'.format(
-                port_id=new_port.id, amp=amphora.id))
+            LOG.debug('Created vip port: '
+                      '{port_id} for node: '
+                      '{node_id}'.format(port_id=new_port.id,
+                                         node_id=node.compute_id))
 
-            interface = self.plug_port(amphora, new_port)
+            interface = self.plug_port(node, new_port)
         except Exception:
-            message = _('Error plugging amphora (compute_id: {compute_id}) '
-                        'into vip network {network_id}.').format(
-                            compute_id=amphora.compute_id,
-                            network_id=subnet.network_id)
+            message = _(
+                'Error plugging node (node_id: {compute_id})  '
+                'into vip network {network_id}.').format(
+                    compute_id=node.compute_id,
+                    network_id=network_id)
             LOG.exception(message)
             raise base.PlugVIPException(message)
         return interface
@@ -291,6 +294,7 @@ class AllowedAddressPairsDriver(neutron_base.BaseNeutronDriver):
                          "not created by Octavia."), vip.port_id)
 
     def plug_vip(self, load_balancer, vip):
+
         if self.sec_grp_enabled:
             self._update_vip_security_group(load_balancer, vip)
         plugged_amphorae = []
@@ -302,8 +306,8 @@ class AllowedAddressPairsDriver(neutron_base.BaseNeutronDriver):
             interface = self._get_plugged_interface(amphora.compute_id,
                                                     subnet.network_id)
             if not interface:
-                interface = self._plug_amphora_vip(amphora, subnet)
-
+                interface = self._plug_vip(amphora,
+                                           subnet.network_id)
             self._add_vip_address_pair(interface.port_id, vip.ip_address)
             if self.sec_grp_enabled:
                 self._add_vip_security_group_to_port(load_balancer.id,
@@ -320,7 +324,21 @@ class AllowedAddressPairsDriver(neutron_base.BaseNeutronDriver):
                 ha_ip=vip.ip_address,
                 vrrp_port_id=interface.port_id,
                 ha_port_id=vip.port_id))
+
         return plugged_amphorae
+
+    def plug_distributor_vip(self, load_balancer, distributor, vip):
+
+        subnet = self.get_subnet(vip.subnet_id)
+
+        # Retrieve a new interface per loadbalancer instead of sharing one
+        interface = self._plug_vip(distributor, subnet.network_id)
+
+        # Disable security groups for Distributor
+        self._disable_security_group_for_port(interface.port_id, vip)
+        vip.port_id = interface.port_id
+        port = self.get_port(load_balancer.vip.port_id)
+        return port.mac_address
 
     def allocate_vip(self, load_balancer):
         if load_balancer.vip.port_id:
@@ -328,6 +346,15 @@ class AllowedAddressPairsDriver(neutron_base.BaseNeutronDriver):
                      load_balancer.vip.port_id)
             port = self.get_port(load_balancer.vip.port_id)
             return self._port_to_vip(port, load_balancer)
+
+        return self._allocate_vip(load_balancer)
+
+    def allocate_amphora_vip(self, load_balancer):
+        return self._allocate_vip(load_balancer)
+
+    def _allocate_vip(self, load_balancer):
+        # Must retrieve the network_id from the subnet
+        subnet = self.get_subnet(load_balancer.vip.subnet_id)
 
         # It can be assumed that network_id exists
         port = {'port': {'name': 'octavia-lb-' + load_balancer.id,
@@ -344,30 +371,29 @@ class AllowedAddressPairsDriver(neutron_base.BaseNeutronDriver):
             LOG.exception(message)
             raise base.AllocateVIPException(message)
         new_port = utils.convert_port_dict_to_model(new_port)
+        LOG.info(_LI("In _allocate_vip, new_port: %s"), repr(new_port))
         return self._port_to_vip(new_port, load_balancer)
 
     def unplug_vip(self, load_balancer, vip):
-        try:
-            subnet = self.get_subnet(vip.subnet_id)
-        except base.SubnetNotFound:
-            msg = _LE("Can't unplug vip because vip subnet {0} was not "
-                      "found").format(vip.subnet_id)
-            LOG.exception(msg)
-            raise base.PluggedVIPNotFound(msg)
+        subnet = self._get_subnet(vip)
         for amphora in six.moves.filter(
             lambda amp: amp.status == constants.AMPHORA_ALLOCATED,
                 load_balancer.amphorae):
+            self._unplug_vip(load_balancer, amphora, vip, subnet)
 
-            interface = self._get_plugged_interface(amphora.compute_id,
-                                                    subnet.network_id)
-            if not interface:
-                # Thought about raising PluggedVIPNotFound exception but
-                # then that wouldn't evaluate all amphorae, so just continue
-                LOG.debug(_LI('Cannot get amphora %s interface, skipped'),
-                          amphora.compute_id)
-                continue
+    def unplug_distributor_vip(self, load_balancer, distributor, vip):
+
+        subnet = self._get_subnet(vip)
+        self._unplug_vip(load_balancer, distributor, vip, subnet)
+
+    def _unplug_vip(self, load_balancer, node, vip, subnet):
+
+        interface = self._get_plugged_interface(node.compute_id,
+                                                subnet.network_id)
+        if interface:
             try:
-                self.unplug_network(amphora.compute_id, subnet.network_id)
+                self.unplug_network(node.compute_id,
+                                    subnet.network_id)
             except Exception:
                 pass
             try:
@@ -384,17 +410,28 @@ class AllowedAddressPairsDriver(neutron_base.BaseNeutronDriver):
                 raise base.UnplugVIPException(message)
 
             # Delete the VRRP port if we created it
-            try:
-                port = self.get_port(amphora.vrrp_port_id)
-                if port.name.startswith('octavia-lb-vrrp-'):
-                    self.neutron_client.delete_port(amphora.vrrp_port_id)
-            except base.PortNotFound:
-                pass
-            except Exception as e:
-                LOG.error(_LE('Failed to delete port.  Resources may still '
-                              'be in use for port: %(port)s due to '
-                              'error: %s(except)s'),
-                          {'port': amphora.vrrp_port_id, 'except': e})
+            if hasattr(node, 'vrrp_port_id'):
+                try:
+                    port = self.get_port(node.vrrp_port_id)
+                    if port.name.startswith('octavia-lb-vrrp-'):
+                        self.neutron_client.delete_port(
+                            node.vrrp_port_id)
+                except base.PortNotFound:
+                    pass
+                except Exception as e:
+                    LOG.error(_LE('Failed to delete port.  Resources may '
+                                  'still be in use for port: %(port)s '
+                                  'due to error: %s(except)s'),
+                              {'port': node.vrrp_port_id, 'except': e})
+
+    def _get_subnet(self, vip):
+        try:
+            subnet = self.get_subnet(vip.subnet_id)
+        except base.SubnetNotFound:
+            msg = ("Can't unplug vip because vip subnet {0} was not "
+                   "found").format(vip.subnet_id)
+            raise base.PluggedVIPNotFound(msg)
+        return subnet
 
     def plug_network(self, compute_id, network_id, ip_address=None):
         try:
@@ -403,13 +440,14 @@ class AllowedAddressPairsDriver(neutron_base.BaseNeutronDriver):
                 port_id=None)
         except nova_client_exceptions.NotFound as e:
             if 'Instance' in e.message:
-                raise base.AmphoraNotFound(e.message)
+                raise base.NodeNotFound(e.message)
             elif 'Network' in e.message:
                 raise base.NetworkNotFound(e.message)
             else:
                 raise base.PlugNetworkException(e.message)
         except Exception:
-            message = _('Error plugging amphora (compute_id: {compute_id}) '
+            message = _('Error plugging node '
+                        '(compute_id: {compute_id}) '
                         'into network {network_id}.').format(
                             compute_id=compute_id,
                             network_id=network_id)
@@ -421,9 +459,9 @@ class AllowedAddressPairsDriver(neutron_base.BaseNeutronDriver):
     def unplug_network(self, compute_id, network_id, ip_address=None):
         interfaces = self.get_plugged_networks(compute_id)
         if not interfaces:
-            msg = ('Amphora with compute id {compute_id} does not have any '
-                   'plugged networks').format(compute_id=compute_id)
-            raise base.AmphoraNotFound(msg)
+            msg = ('Node with compute id {compute_id} does not '
+                   'have any plugged networks').format(compute_id=compute_id)
+            raise base.NodeNotFound(msg)
 
         unpluggers = self._get_interfaces_to_unplug(interfaces, network_id,
                                                     ip_address=ip_address)
@@ -432,8 +470,8 @@ class AllowedAddressPairsDriver(neutron_base.BaseNeutronDriver):
                 self.nova_client.servers.interface_detach(
                     server=compute_id, port_id=unplugger.port_id)
         except Exception:
-            message = _('Error unplugging amphora {amphora_id} from network '
-                        '{network_id}.').format(amphora_id=compute_id,
+            message = _('Error unplugging node {compute_id} from network '
+                        '{network_id}.').format(compute_id=compute_id,
                                                 network_id=network_id)
             if len(unpluggers) > 1:
                 message = _('{base} Other interfaces have been successfully '
@@ -451,14 +489,15 @@ class AllowedAddressPairsDriver(neutron_base.BaseNeutronDriver):
 
     def update_vip(self, load_balancer):
         sec_grp = self._get_lb_security_group(load_balancer.id)
-        self._update_security_group_rules(load_balancer, sec_grp.get('id'))
+        if sec_grp is not None:
+            self._update_security_group_rules(load_balancer, sec_grp.get('id'))
 
-    def failover_preparation(self, amphora):
+    def failover_preparation(self, node):
         if self.dns_integration_enabled:
-            self._failover_preparation(amphora)
+            self._failover_preparation(node)
 
-    def _failover_preparation(self, amphora):
-        interfaces = self.get_plugged_networks(compute_id=amphora.compute_id)
+    def _failover_preparation(self, node):
+        interfaces = self.get_plugged_networks(compute_id=node.compute_id)
 
         ports = []
         for interface_ in interfaces:
@@ -466,7 +505,7 @@ class AllowedAddressPairsDriver(neutron_base.BaseNeutronDriver):
             ips = port.fixed_ips
             lb_network = False
             for ip in ips:
-                if ip.ip_address == amphora.lb_network_ip:
+                if ip.ip_address == node.lb_network_ip:
                     lb_network = True
             if not lb_network:
                 ports.append(port)
@@ -480,33 +519,33 @@ class AllowedAddressPairsDriver(neutron_base.BaseNeutronDriver):
                     neutron_client_exceptions.PortNotFoundClient):
                 raise base.PortNotFound()
 
-    def plug_port(self, amphora, port):
+    def plug_port(self, node, port):
+        plugged_interface = None
         try:
             interface = self.nova_client.servers.interface_attach(
-                server=amphora.compute_id, net_id=None,
+                server=node.compute_id, net_id=None,
                 fixed_ip=None, port_id=port.id)
             plugged_interface = self._nova_interface_to_octavia_interface(
-                amphora.compute_id, interface)
+                node.compute_id, interface)
         except nova_client_exceptions.NotFound as e:
             if 'Instance' in e.message:
-                raise base.AmphoraNotFound(e.message)
+                raise base.NodeNotFound(e.message)
             elif 'Network' in e.message:
                 raise base.NetworkNotFound(e.message)
-            else:
-                raise base.PlugNetworkException(e.message)
+            raise base.PlugNetworkException(e.message)
         except nova_client_exceptions.Conflict:
             LOG.info(_LI('Port %(portid)s is already plugged, '
                      'skipping') % {'portid': port.id})
             plugged_interface = n_data_models.Interface(
-                compute_id=amphora.compute_id,
+                compute_id=node.compute_id,
                 network_id=port.network_id,
                 port_id=port.id,
                 fixed_ips=port.fixed_ips)
         except Exception:
-            message = _('Error plugging amphora (compute_id: '
+            message = _('Error plugging node (compute_id: '
                         '{compute_id}) into port '
                         '{port_id}.').format(
-                            compute_id=amphora.compute_id,
+                            compute_id=node.compute_id,
                             port_id=port.id)
             LOG.exception(message)
             raise base.PlugNetworkException(message)

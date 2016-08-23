@@ -60,7 +60,7 @@ The Controller Worker library will provide the following methods:
 
         :param amphora_id: ID of the amphora to delete
         :returns: None
-        :raises AmphoraNotFound: The referenced Amphora was not found
+        :raises NodeNotFound: The referenced Amphora was not found
         """
         raise NotImplementedError
 
@@ -211,7 +211,7 @@ The Controller Worker library will provide the following methods:
 
         :param amp_id: ID of the amphora to fail over
         :returns: None
-        :raises AmphoraNotFound: The referenced Amphora was not found
+        :raises NodeNotFound: The referenced Amphora was not found
         """
         raise NotImplementedError
 

@@ -39,6 +39,8 @@ class TestNoopNetworkDriver(base.TestCase):
         self.ip_address = "10.0.0.2"
         self.load_balancer = models.LoadBalancer()
         self.load_balancer.id = self.FAKE_UUID_2
+        self.distributor = models.Distributor()
+        self.distributor.id = self.FAKE_UUID_4
 
         self.vip = models.Vip()
         self.vip.ip_address = "10.0.0.1"
@@ -73,6 +75,24 @@ class TestNoopNetworkDriver(base.TestCase):
                           'unplug_vip'),
                          self.driver.driver.networkconfigconfig[(
                              self.load_balancer.id, self.vip.ip_address)])
+
+    def test_plug_distributor_vip(self):
+        self.driver.plug_distributor_vip(self.load_balancer,
+                                         self.distributor, self.vip)
+        self.assertEqual((self.load_balancer, self.distributor, self.vip,
+                          'plug_distributor_vip'),
+                         self.driver.driver.networkconfigconfig[(
+                             self.load_balancer.id, self.distributor.id,
+                             self.vip.ip_address)])
+
+    def test_unplug_distributor_vip(self):
+        self.driver.unplug_distributor_vip(self.load_balancer,
+                                           self.distributor, self.vip)
+        self.assertEqual((self.load_balancer, self.distributor, self.vip,
+                          'unplug_distributor_vip'),
+                         self.driver.driver.networkconfigconfig[(
+                             self.load_balancer.id, self.distributor.id,
+                             self.vip.ip_address)])
 
     def test_plug_network(self):
         self.driver.plug_network(self.amphora_id, self.network_id,

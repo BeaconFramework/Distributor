@@ -1,4 +1,5 @@
 # Copyright 2015 Hewlett-Packard Development Company, L.P.
+# Copyright 2016 IBM Corp.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
@@ -62,13 +63,37 @@ class NoopManager(object):
             ))
         return amps
 
-    def unplug_vip(self, loadbalancer, vip):
-        LOG.debug("Network %s no-op, unplug_vip loadbalancer %s, vip %s",
+    def plug_distributor_vip(self, load_balancer, distributor, vip):
+        LOG.debug("Network %s no-op, plug_distributor_vip "
+                  "load_balancer %s, vip %s, distributor %s",
                   self.__class__.__name__,
-                  loadbalancer.id, vip.ip_address)
-        self.networkconfigconfig[(loadbalancer.id,
-                                  vip.ip_address)] = (loadbalancer, vip,
+                  load_balancer.id, vip.ip_address, distributor.id)
+        self.networkconfigconfig[(load_balancer.id,
+                                  distributor.id,
+                                  vip.ip_address,)] = (load_balancer,
+                                                       distributor,
+                                                       vip,
+                                                       'plug_distributor_vip')
+
+    def unplug_vip(self, load_balancer, vip):
+        LOG.debug("Network %s no-op, unplug_vip load_balancer %s, vip %s",
+                  self.__class__.__name__,
+                  load_balancer.id, vip.ip_address)
+        self.networkconfigconfig[(load_balancer.id,
+                                  vip.ip_address)] = (load_balancer, vip,
                                                       'unplug_vip')
+
+    def unplug_distributor_vip(self, load_balancer, distributor, vip):
+        LOG.debug("Network %s no-op, unplug_distributor_vip "
+                  "load_balancer %s, vip %s, distributor %s",
+                  self.__class__.__name__,
+                  load_balancer.id, vip.ip_address, distributor.id)
+        self.networkconfigconfig[(load_balancer.id,
+                                  distributor.id,
+                                  vip.ip_address)] = (load_balancer,
+                                                      distributor,
+                                                      vip,
+                                                      'unplug_distributor_vip')
 
     def plug_network(self, compute_id, network_id, ip_address=None):
         LOG.debug("Network %s no-op, plug_network compute_id %s, network_id "
@@ -179,14 +204,25 @@ class NoopNetworkDriver(driver_base.AbstractNetworkDriver):
     def allocate_vip(self, loadbalancer):
         return self.driver.allocate_vip(loadbalancer)
 
+    def allocate_amphora_vip(self, load_balancer):
+        return self.driver.allocate_vip(load_balancer)
+
     def deallocate_vip(self, vip):
         self.driver.deallocate_vip(vip)
 
     def plug_vip(self, loadbalancer, vip):
         return self.driver.plug_vip(loadbalancer, vip)
 
-    def unplug_vip(self, loadbalancer, vip):
-        self.driver.unplug_vip(loadbalancer, vip)
+    def plug_distributor_vip(self, load_balancer, distributor, vip):
+        return self.driver.plug_distributor_vip(load_balancer,
+                                                distributor, vip)
+
+    def unplug_vip(self, load_balancer, vip):
+        self.driver.unplug_vip(load_balancer, vip)
+
+    def unplug_distributor_vip(self, load_balancer, distributor, vip):
+        return self.driver.unplug_distributor_vip(load_balancer,
+                                                  distributor, vip)
 
     def plug_network(self, amphora_id, network_id, ip_address=None):
         return self.driver.plug_network(amphora_id, network_id, ip_address)

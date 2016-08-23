@@ -95,7 +95,7 @@ class ControllerWorker(base_taskflow.BaseTaskFlowEngine):
 
         :param amphora_id: ID of the amphora to delete
         :returns: None
-        :raises AmphoraNotFound: The referenced Amphora was not found
+        :raises NodeNotFound: The referenced Amphora was not found
         """
         amphora = self._amphora_repo.get(db_apis.get_session(),
                                          id=amphora_id)
@@ -611,7 +611,7 @@ class ControllerWorker(base_taskflow.BaseTaskFlowEngine):
 
         :param amphora_id: ID for amphora to failover
         :returns: None
-        :raises AmphoraNotFound: The referenced amphora was not found
+        :raises NodeNotFound: The referenced amphora was not found
         """
 
         try:
@@ -638,7 +638,7 @@ class ControllerWorker(base_taskflow.BaseTaskFlowEngine):
 
         :param amphora_id: ID for amphora to rotate
         :returns: None
-        :raises AmphoraNotFound: The referenced amphora was not found
+        :raises NodeNotFound: The referenced amphora was not found
         """
 
         amp = self._amphora_repo.get(db_apis.get_session(),

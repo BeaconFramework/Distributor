@@ -67,7 +67,7 @@ class VIPConfigurationNotFound(NetworkException):
     pass
 
 
-class AmphoraNotFound(NetworkException):
+class NodeNotFound(NetworkException):
     pass
 
 
@@ -149,7 +149,7 @@ class AbstractNetworkDriver(object):
         :param network_id: id of a network
         :param ip_address: ip address to attempt to be assigned to interface
         :return: octavia.network.data_models.Interface instance
-        :raises: PlugNetworkException, AmphoraNotFound, NetworkNotFound
+        :raises: PlugNetworkException, NodeNotFound, NetworkNotFound
         """
 
     @abc.abstractmethod
@@ -163,7 +163,7 @@ class AbstractNetworkDriver(object):
         :param network_id: id of a network
         :param ip_address: specific ip_address to unplug
         :return: None
-        :raises: UnplugNetworkException, AmphoraNotFound, NetworkNotFound,
+        :raises: UnplugNetworkException, NodeNotFound, NetworkNotFound,
                  NetworkException
         """
         pass
@@ -277,7 +277,7 @@ class AbstractNetworkDriver(object):
         :param compute_id: id of an amphora in the compute service
         :param port: port to plug into the compute instance
         :return: None
-        :raises: PlugNetworkException, AmphoraNotFound, NetworkNotFound
+        :raises: PlugNetworkException, NodeNotFound, NetworkNotFound
         """
         pass
 

@@ -252,7 +252,7 @@ class AmphoraFlows(object):
 
         This should be configurable in the config file
         :returns: The flow for deleting the amphora
-        :raises AmphoraNotFound: The referenced Amphora was not found
+        :raises NodeNotFound: The referenced Amphora was not found
         """
 
         delete_amphora_flow = linear_flow.Flow(constants.DELETE_AMPHORA_FLOW)
