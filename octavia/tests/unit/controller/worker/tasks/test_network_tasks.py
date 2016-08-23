@@ -1,4 +1,5 @@
 # Copyright 2015 Hewlett-Packard Development Company, L.P.
+# Copyright 2016 IBM Corp.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
@@ -27,6 +28,8 @@ import octavia.tests.unit.base as base
 
 
 AMPHORA_ID = 7
+DISTRIBUTOR_ID = 8
+MOCK_MAC_ADDR = 'fe:16:3e:00:95:5c'
 COMPUTE_ID = uuidutils.generate_uuid()
 PORT_ID = uuidutils.generate_uuid()
 SUBNET_ID = uuidutils.generate_uuid()
@@ -40,6 +43,10 @@ FIXED_IPS = [FIRST_IP]
 INTERFACE = data_models.Interface(id=uuidutils.generate_uuid(),
                                   compute_id=COMPUTE_ID, fixed_ips=FIXED_IPS,
                                   port_id=PORT_ID)
+DISTRIBUTOR = o_data_models.Distributor(id=DISTRIBUTOR_ID,
+                                        compute_id=COMPUTE_ID,
+                                        lb_network_ip=IP_ADDRESS,
+                                        status=None)
 
 
 class TestException(Exception):
@@ -373,11 +380,20 @@ class TestNetworkTasks(base.TestCase):
         net.revert(["vip"], LB)
         mock_driver.unplug_vip.assert_called_once_with(LB, LB.vip)
 
-        # revert with exception
-        mock_driver.reset_mock()
-        mock_driver.unplug_vip.side_effect = Exception('UnplugVipException')
-        net.revert(["vip"], LB)
-        mock_driver.unplug_vip.assert_called_once_with(LB, LB.vip)
+    def test_plug_distributor_vip(self, mock_get_net_driver):
+        mock_driver = mock.MagicMock()
+        mock_get_net_driver.return_value = mock_driver
+        net = network_tasks.PlugDistributorVIP()
+
+        net.execute(LB, DISTRIBUTOR)
+        mock_driver.plug_distributor_vip.assert_called_once_with(LB,
+                                                                 DISTRIBUTOR,
+                                                                 LB.vip)
+        # revert
+        net.revert(LB, DISTRIBUTOR)
+        mock_driver.unplug_distributor_vip.assert_called_once_with(LB,
+                                                                   DISTRIBUTOR,
+                                                                   LB.vip)
 
     def test_unplug_vip(self, mock_get_net_driver):
         mock_driver = mock.MagicMock()
@@ -386,6 +402,16 @@ class TestNetworkTasks(base.TestCase):
 
         net.execute(LB)
         mock_driver.unplug_vip.assert_called_once_with(LB, LB.vip)
+
+    def test_unplug_distributor_vip(self, mock_get_net_driver):
+        mock_driver = mock.MagicMock()
+        mock_get_net_driver.return_value = mock_driver
+        net = network_tasks.UnplugDistributorVIP()
+
+        net.execute(DISTRIBUTOR, LB)
+        mock_driver.unplug_distributor_vip.assert_called_once_with(LB,
+                                                                   DISTRIBUTOR,
+                                                                   LB.vip)
 
     def test_allocate_vip(self, mock_get_net_driver):
         mock_driver = mock.MagicMock()
@@ -403,9 +429,17 @@ class TestNetworkTasks(base.TestCase):
         net.revert(vip_mock, LB)
         mock_driver.deallocate_vip.assert_called_once_with(vip_mock)
 
-        # revert exception
+    def test_allocate_amphora_vip(self, mock_get_net_driver):
+        mock_driver = mock.MagicMock()
+        mock_get_net_driver.return_value = mock_driver
+        net = network_tasks.AllocateAmphoraVIP()
+
+        mock_driver.allocate_amphora_vip.return_value = LB.vip
+
         mock_driver.reset_mock()
-        mock_driver.deallocate_vip.side_effect = Exception('DeallVipException')
+        self.assertEqual(LB.vip, net.execute(LB))
+        mock_driver.allocate_amphora_vip.assert_called_once_with(LB)
+        # revert
         vip_mock = mock.MagicMock()
         net.revert(vip_mock, LB)
         mock_driver.deallocate_vip.assert_called_once_with(vip_mock)
@@ -508,17 +542,21 @@ class TestNetworkTasks(base.TestCase):
     def test_plug_vip_port(self, mock_get_net_driver):
         mock_driver = mock.MagicMock()
         mock_get_net_driver.return_value = mock_driver
+        vip_port = mock.MagicMock()
         vrrp_port = mock.MagicMock()
 
         amphorae_network_config = mock.MagicMock()
+        amphorae_network_config.get().vip_port = vip_port
         amphorae_network_config.get().vrrp_port = vrrp_port
 
         plugvipport = network_tasks.PlugVIPPort()
         plugvipport.execute(self.amphora_mock, amphorae_network_config)
+        mock_driver.plug_port.assert_any_call(self.amphora_mock, vip_port)
         mock_driver.plug_port.assert_any_call(self.amphora_mock, vrrp_port)
 
         # test revert
         plugvipport.revert(None, self.amphora_mock, amphorae_network_config)
+        mock_driver.unplug_port.assert_any_call(self.amphora_mock, vip_port)
         mock_driver.unplug_port.assert_any_call(self.amphora_mock, vrrp_port)
 
     def test_wait_for_port_detach(self, mock_get_net_driver):
@@ -532,3 +570,15 @@ class TestNetworkTasks(base.TestCase):
         waitforportdetach.execute(amphora)
 
         mock_driver.wait_for_port_detach.assert_called_once_with(amphora)
+
+    def test_get_amphora_mac_addr(self, mock_get_net_driver):
+        mock_driver = mock.MagicMock()
+        mock_get_net_driver.return_value = mock_driver
+        net_task = network_tasks.GetAmphoraMacAddr()
+        amphora = mock.MagicMock()
+        port_mock = mock.MagicMock()
+        port_mock.mac_address = MOCK_MAC_ADDR
+        amphora.vrrp_port_id = PORT_ID
+        mock_driver.get_port.return_value = port_mock
+        returned_amphora_mac = net_task.execute(amphora)
+        self.assertEqual(MOCK_MAC_ADDR, returned_amphora_mac)

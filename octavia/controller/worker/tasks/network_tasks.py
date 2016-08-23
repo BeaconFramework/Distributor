@@ -1,4 +1,5 @@
 # Copyright 2015 Hewlett-Packard Development Company, L.P.
+# Copyright 2016 IBM Corp.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
@@ -261,12 +262,12 @@ class HandleNetworkDeltas(BaseNetworkTask):
 
 
 class PlugVIP(BaseNetworkTask):
-    """Task to plumb a VIP."""
+    """Task to plug a VIP."""
 
     def execute(self, loadbalancer):
-        """Plumb a vip to an amphora."""
+        """Plug a vip to an amphora."""
 
-        LOG.debug("Plumbing VIP for loadbalancer id: %s", loadbalancer.id)
+        LOG.debug("Plugging VIP for loadbalancer id: %s", loadbalancer.id)
 
         amps_data = self.network_driver.plug_vip(loadbalancer,
                                                  loadbalancer.vip)
@@ -297,6 +298,28 @@ class PlugVIP(BaseNetworkTask):
                       {'vip': loadbalancer.vip.ip_address, 'except': e})
 
 
+class PlugDistributorVIP(BaseNetworkTask):
+    """Task to plug a VIP."""
+
+    def execute(self, loadbalancer, distributor):
+        """Plug a vip to a distributor."""
+
+        LOG.debug("Plugging Distributor VIP for loadbalancer id: %s",
+                  loadbalancer.id)
+        return self.network_driver.plug_distributor_vip(
+            loadbalancer, distributor, loadbalancer.vip)
+
+    def revert(self, loadbalancer, distributor, *args, **kwargs):
+        """Handle a failure to plug a vip."""
+
+        LOG.warning(_LW("Unable to plug VIP for loadbalancer id %s"),
+                    loadbalancer.id)
+
+        self.network_driver.unplug_distributor_vip(loadbalancer,
+                                                   distributor,
+                                                   loadbalancer.vip)
+
+
 class UnplugVIP(BaseNetworkTask):
     """Task to unplug the vip."""
 
@@ -309,6 +332,21 @@ class UnplugVIP(BaseNetworkTask):
         except Exception:
             LOG.exception(_LE("Unable to unplug vip from load balancer %s"),
                           loadbalancer.id)
+
+
+class UnplugDistributorVIP(BaseNetworkTask):
+    """Task to unplug the vip from specific amphora ."""
+
+    def execute(self, distributor, loadbalancer):
+        """Unplug the vip."""
+
+        LOG.debug("UnplugAmporaVIP start")
+        try:
+            self.network_driver.unplug_distributor_vip(
+                loadbalancer, distributor, loadbalancer.vip)
+        except Exception:
+            LOG.exception(_LE("Unable to unplug distributor vip from "
+                              "load balancer %s"), loadbalancer.id)
 
 
 class AllocateVIP(BaseNetworkTask):
@@ -341,14 +379,41 @@ class AllocateVIP(BaseNetworkTask):
                       {'vip': vip.ip_address, 'except': e})
 
 
+class AllocateAmphoraVIP(BaseNetworkTask):
+    """Task to allocate a VIP."""
+
+    def execute(self, loadbalancer):
+        """Allocate a vip to the loadbalancer."""
+
+        LOG.debug("Allocate_amphora_vip port_id %s, subnet_id %s,"
+                  "ip_address %s",
+                  loadbalancer.vip.port_id,
+                  loadbalancer.vip.subnet_id,
+                  loadbalancer.vip.ip_address)
+        return self.network_driver.allocate_amphora_vip(loadbalancer)
+
+    def revert(self, result, loadbalancer, *args, **kwargs):
+        """Handle a failure to allocate vip."""
+
+        if isinstance(result, failure.Failure):
+            LOG.exception(_LE("Unable to allocate VIP"))
+            return
+        vip = result
+        LOG.warning(_LW("Deallocating vip %s"), vip.ip_address)
+        try:
+            self.network_driver.deallocate_vip(vip)
+        except Exception as e:
+            LOG.error(_LE("Failed to deallocate VIP.  Resources may still "
+                          "be in use from vip: %(vip)s due to "
+                          "error: %(except)s"),
+                      {'vip': vip.ip_address, 'except': e})
+
+
 class DeallocateVIP(BaseNetworkTask):
     """Task to deallocate a VIP."""
 
     def execute(self, loadbalancer):
-        """Deallocate a VIP."""
-
         LOG.debug("Deallocating a VIP %s", loadbalancer.vip.ip_address)
-
         # NOTE(blogan): this is kind of ugly but sufficient for now.  Drivers
         # will need access to the load balancer that the vip is/was attached
         # to.  However the data model serialization for the vip does not give a
@@ -374,6 +439,18 @@ class GetAmphoraeNetworkConfigs(BaseNetworkTask):
     def execute(self, loadbalancer):
         LOG.debug("Retrieving vip network details.")
         return self.network_driver.get_network_configs(loadbalancer)
+
+
+class GetAmphoraMacAddr(BaseNetworkTask):
+    """Task to get Amphora MAC Address."""
+
+    def execute(self, amphora):
+        LOG.debug("GetAmphoraMacAddr start")
+        vrrp_port = self.network_driver.get_port(amphora.vrrp_port_id)
+        amphora_mac = vrrp_port.mac_address
+        LOG.debug("GetAmphoraMacAddr: amphora_id:%s, mac:%s ",
+                  amphora.id, amphora_mac)
+        return amphora_mac
 
 
 class FailoverPreparationForAmphora(BaseNetworkTask):
@@ -425,14 +502,28 @@ class PlugVIPPort(BaseNetworkTask):
     """Task to plug a VIP into a compute instance."""
 
     def execute(self, amphora, amphorae_network_config):
+        vip_port = amphorae_network_config.get(amphora.id).vip_port
         vrrp_port = amphorae_network_config.get(amphora.id).vrrp_port
         LOG.debug('Plugging VIP VRRP port ID: {port_id} into compute '
-                  'instance: {compute_id}.'.format(
-                      port_id=vrrp_port.id, compute_id=amphora.compute_id))
+                  'instance: '
+                  '{compute_id}.'.format(port_id=vrrp_port.id,
+                                         compute_id=amphora.compute_id))
         self.network_driver.plug_port(amphora, vrrp_port)
+        LOG.debug('Plugging VIP port ID: {port_id} into compute instance: '
+                  '{compute_id}.'.format(port_id=vip_port.id,
+                                         compute_id=amphora.compute_id))
+        self.network_driver.plug_port(amphora, vip_port)
 
     def revert(self, result, amphora, amphorae_network_config,
                *args, **kwargs):
+        vip_port = None
+        try:
+            vip_port = amphorae_network_config.get(amphora.id).vip_port
+            self.network_driver.unplug_port(amphora, vip_port)
+        except Exception:
+            LOG.warning(_LW('Failed to unplug vip port: {port} '
+                            'from amphora: {amp}').format(port=vip_port.id,
+                                                          amp=amphora.id))
         vrrp_port = None
         try:
             vrrp_port = amphorae_network_config.get(amphora.id).vrrp_port
