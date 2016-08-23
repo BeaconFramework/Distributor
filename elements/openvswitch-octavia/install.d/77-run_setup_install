@@ -1,0 +1,66 @@
+#!/bin/bash
+
+set -eux
+
+# Copy OVS sources into distributor to allow off-line installation of latest OVS code
+
+cat << 'EOF' > /opt/ovs-install/ovs-install-all.sh
+#!/usr/bin/env bash
+
+if mkdir /opt/ovs-install/install_ovs.lock; then
+    echo "Locking succeeded" >&2
+else
+    echo "Lock failed - exit" >&2
+    exit 1
+fi
+try10() {
+    # does not work with pipes...
+    local MAX_TRIES=10
+    local try=1
+    while ! "$@"; do
+        echo "Fail ($try): $@"
+        sleep 30
+        if [[ $try == $MAX_TRIES ]]; then
+            echo "Giving up on: $@" >> /opt/ovs-install/install_ovs.error
+            break
+        fi
+        let try++
+    done
+}
+echo -e "Was last updated Tue, 09 Feb 2016 15:12:24 +0200"
+#Remove old version of OVS:
+cd ~
+try10 sudo apt-get -y purge openvswitch-switch
+try10 sudo apt-get -y purge openvswitch-common
+lsmod | grep "open" || yes
+sudo rmmod openvswitch || yes
+# Use offline copy of latest ovs code located in /opt/ovs-install
+cd /opt/ovs-install
+# set known to be working ovs ref
+sudo git reset --hard 8834e5c27ff9739ff4bf0199894d839581d30da8
+# build ovs executable
+sudo ./boot.sh
+sudo ./configure
+sudo make
+sudo make install
+# install new ovs into distributor
+sudo /sbin/modprobe openvswitch
+sudo mkdir -p /usr/local/etc/openvswitch
+sudo ovsdb-tool \
+create /usr/local/etc/openvswitch/conf.db vswitchd/vswitch.ovsschema
+sudo ovsdb-server --remote=punix:/usr/local/var/run/openvswitch/db.sock \
+                  --remote=db:Open_vSwitch,Open_vSwitch,manager_options \
+                  --private-key=db:Open_vSwitch,SSL,private_key \
+                  --certificate=db:Open_vSwitch,SSL,certificate \
+                  --bootstrap-ca-cert=db:Open_vSwitch,SSL,ca_cert \
+                  --pidfile --detach
+sudo ovs-vsctl --no-wait init
+sudo ovs-vswitchd --pidfile --detach
+sudo ovs-ofctl -V
+touch /opt/ovs-install/install_ovs.done
+EOF
+
+chmod 555 /opt/ovs-install/ovs-install-all.sh
+
+
+

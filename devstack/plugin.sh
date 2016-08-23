@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# devstack plugin for octavia
+# Devstack plugin for octavia 
 
 GET_PIP_CACHE_LOCATION=/opt/stack/cache/files/get-pip.py
 
@@ -8,7 +8,7 @@ function octavia_install {
 
     setup_develop $OCTAVIA_DIR
     if [ $OCTAVIA_NODE == 'main' ] || [ $OCTAVIA_NODE == 'standalone' ] ; then
-        if ! [ "$DISABLE_AMP_IMAGE_BUILD" == 'True' ]; then
+	if ! [ "$DISABLE_AMP_IMAGE_BUILD" == 'True' ] || ! [ "$DISABLE_DISTRIBUTOR_IMAGE_BUILD" == 'True' ]; then
             install_package qemu kpartx
             git_clone $DISKIMAGE_BUILDER_REPO $DISKIMAGE_BUILDER_DIR $DISKIMAGE_BUILDER_BRANCH
             sudo -H -E pip install -r $DEST/diskimage-builder/requirements.txt
@@ -52,8 +52,20 @@ function build_octavia_worker_image {
         $OCTAVIA_DIR/diskimage-create/diskimage-create.sh $octavia_dib_tracing_arg -o $OCTAVIA_AMP_IMAGE_FILE ${PARAM_OCTAVIA_AMP_BASE_OS:-''} ${PARAM_OCTAVIA_AMP_DISTRIBUTION_RELEASE_ID:-''} ${PARAM_OCTAVIA_AMP_IMAGE_SIZE:-''}
     fi
     upload_image file://${OCTAVIA_AMP_IMAGE_FILE} $TOKEN
-
 }
+
+function build_octavia_distributor_image {
+
+    TOKEN=$(openstack token issue | grep ' id ' | get_field 2)
+    die_if_not_set $LINENO TOKEN "Keystone failed to get token."
+
+    if ! [ -f $OCTAVIA_DISTRIBUTOR_IMAGE_FILE ]; then
+        $OCTAVIA_DIR/diskimage-create/diskimage-create.sh -b "openvswitch" -s 2 -p "distributor"
+    fi
+    upload_image file://${OCTAVIA_DISTRIBUTOR_IMAGE_FILE} $TOKEN
+}
+
+
 
 function create_octavia_accounts {
     create_service_user "octavia"
@@ -98,8 +110,11 @@ function octavia_configure {
     iniset $OCTAVIA_CONF service_auth signing_dir $signing_dir
     iniset $OCTAVIA_CONF service_auth memcached_servers $SERVICE_HOST:11211
 
+    iniset $OCTAVIA_CONF active_active_cluster distributor_flavor_id ${OCTAVIA_DISTRIBUTOR_FLAVOR_ID}
+
     # Setting other required default options
     iniset $OCTAVIA_CONF controller_worker amphora_driver ${OCTAVIA_AMPHORA_DRIVER}
+    iniset $OCTAVIA_CONF active_active_cluster distributor_driver ${OCTAVIA_DISTRIBUTOR_DRIVER}
     iniset $OCTAVIA_CONF controller_worker compute_driver ${OCTAVIA_COMPUTE_DRIVER}
     iniset $OCTAVIA_CONF controller_worker network_driver ${OCTAVIA_NETWORK_DRIVER}
 
@@ -130,6 +145,13 @@ function octavia_configure {
     iniuncomment $OCTAVIA_CONF controller_worker amp_active_retries
     iniuncomment $OCTAVIA_CONF controller_worker amp_active_wait_sec
 
+    # Uncomment other default options
+    iniuncomment $OCTAVIA_CONF distributor username
+    iniuncomment $OCTAVIA_CONF distributor base_path
+    iniuncomment $OCTAVIA_CONF distributor base_cert_dir
+    iniuncomment $OCTAVIA_CONF distributor connection_max_retries
+    iniuncomment $OCTAVIA_CONF distributor connection_retry_interval
+
     # devstack optimizations for tempest runs
     iniset $OCTAVIA_CONF haproxy_amphora connection_max_retries 1500
     iniset $OCTAVIA_CONF haproxy_amphora connection_retry_interval 1
@@ -152,9 +174,12 @@ function octavia_configure {
         ssh-keygen -b $OCTAVIA_AMP_SSH_KEY_BITS -t $OCTAVIA_AMP_SSH_KEY_TYPE -N "" -f ${OCTAVIA_AMP_SSH_KEY_PATH}
     fi
     iniset $OCTAVIA_CONF controller_worker amp_ssh_key_name ${OCTAVIA_AMP_SSH_KEY_NAME}
+    iniset $OCTAVIA_CONF controller_worker distributor_ssh_key_name ${OCTAVIA_DISTRIBUTOR_SSH_KEY_NAME}
+
 
     # Used to communicate with the amphora over the mgmt network, may differ from amp_ssh_key in a real deployment.
     iniset $OCTAVIA_CONF haproxy_amphora key_path ${OCTAVIA_AMP_SSH_KEY_PATH}
+    iniset $OCTAVIA_CONF distributor key_path ${OCTAVIA_DISTRIBUTOR_SSH_KEY_PATH}
 
     if [ $OCTAVIA_NODE == 'main' ] || [ $OCTAVIA_NODE == 'standalone' ] ; then
         recreate_database_mysql octavia
@@ -173,6 +198,8 @@ function octavia_configure {
 
     iniset $OCTAVIA_CONF haproxy_amphora client_cert ${OCTAVIA_CERTS_DIR}/client.pem
     iniset $OCTAVIA_CONF haproxy_amphora server_ca ${OCTAVIA_CERTS_DIR}/ca_01.pem
+    iniset $OCTAVIA_CONF distributor client_cert ${OCTAVIA_CERTS_DIR}/client.pem
+    iniset $OCTAVIA_CONF distributor server_ca ${OCTAVIA_CERTS_DIR}/ca_01.pem
     iniset $OCTAVIA_CONF certificates ca_certificate ${OCTAVIA_CERTS_DIR}/ca_01.pem
     iniset $OCTAVIA_CONF certificates ca_private_key ${OCTAVIA_CERTS_DIR}/private/cakey.pem
     iniset $OCTAVIA_CONF certificates ca_private_key_passphrase foobar
@@ -233,9 +260,10 @@ function build_mgmt_network {
     openstack security group rule create --protocol icmp lb-mgmt-sec-grp
     openstack security group rule create --protocol tcp --dst-port 22 lb-mgmt-sec-grp
     openstack security group rule create --protocol tcp --dst-port 9443 lb-mgmt-sec-grp
-    openstack security group rule create --protocol icmpv6 --ethertype IPv6 --remote-ip ::/0 lb-mgmt-sec-grp
-    openstack security group rule create --protocol tcp --dst-port 22 --ethertype IPv6 --remote-ip ::/0 lb-mgmt-sec-grp
-    openstack security group rule create --protocol tcp --dst-port 9443 --ethertype IPv6 --remote-ip ::/0 lb-mgmt-sec-grp
+    openstack security group rule create --protocol icmpv6 --ethertype IPv6 --src-ip ::/0 lb-mgmt-sec-grp
+    openstack security group rule create --protocol tcp --dst-port 22 --ethertype IPv6 --src-ip ::/0 lb-mgmt-sec-grp
+    openstack security group rule create --protocol tcp --dst-port 9443 --ethertype IPv6 --src-ip ::/0 lb-mgmt-sec-grp
+    openstack security group rule create --protocol tcp --dst-port 9442 lb-mgmt-sec-grp
 
     # Create security group and rules
     openstack security group create lb-health-mgr-sec-grp
@@ -281,7 +309,10 @@ function configure_octavia_api_haproxy {
        IP=$(echo -e "${DATA[1]}" | tr -d '[[:space:]]')
        echo "   server octavia-${NAME} ${IP}:${OCTAVIA_HA_PORT} weight 1" >> ${OCTAVIA_CONF_DIR}/haproxy.cfg
     done
+}
 
+function create_distributor_flavor {
+    nova flavor-create --is-public False m1.distributor ${OCTAVIA_DISTRIBUTOR_FLAVOR_ID} 1024 10 1
 }
 
 function octavia_start {
@@ -342,6 +373,23 @@ function octavia_start {
     iniset $OCTAVIA_CONF controller_worker amp_image_tag ${OCTAVIA_AMP_IMAGE_TAG}
 
     OCTAVIA_AMP_NETWORK_ID=$(openstack network list | awk '/ lb-mgmt-net / {print $2}')
+    if [ $OCTAVIA_NODE == 'main' ] || [ $OCTAVIA_NODE == 'standalone' ] ; then
+        if ! [ "$DISABLE_DISTRIBUTOR_IMAGE_BUILD" == 'True' ]; then
+            build_octavia_distributor_image
+        fi
+
+        OCTAVIA_DISTRIBUTOR_IMAGE_ID=$(glance image-list | grep ${OCTAVIA_DISTRIBUTOR_IMAGE_NAME} | awk '{print $2}')
+
+        if [ -n "$OCTAVIA_DISTRIBUTOR_IMAGE_ID" ]; then
+            glance image-tag-update ${OCTAVIA_DISTRIBUTOR_IMAGE_ID} ${OCTAVIA_DISTRIBUTOR_IMAGE_TAG}
+        fi
+    fi
+
+    iniset $OCTAVIA_CONF active_active_cluster distributor_image_tag ${OCTAVIA_DISTRIBUTOR_IMAGE_TAG}
+
+    if [ $OCTAVIA_NODE == 'main' ] || [ $OCTAVIA_NODE == 'standalone' ] ; then
+        create_distributor_flavor
+    fi
 
     iniset $OCTAVIA_CONF controller_worker amp_boot_network_list ${OCTAVIA_AMP_NETWORK_ID}
 
@@ -393,6 +441,12 @@ function octavia_cleanup {
     if [ ${OCTAVIA_AMP_SSH_KEY_NAME}x != x ] ; then
          rm -f  ${OCTAVIA_AMP_SSH_KEY_NAME}*
     fi
+    if [ ${OCTAVIA_DISTRIBUTOR_IMAGE_NAME}x != x ] ; then
+         rm -rf ${OCTAVIA_DISTRIBUTOR_IMAGE_NAME}*
+    fi
+    if [ ${OCTAVIA_DISTRIBUTOR_SSH_KEY_NAME}x != x ] ; then
+         rm -f  ${OCTAVIA_DISTRIBUTOR_SSH_KEY_NAME}*
+    fi
     if [ ${OCTAVIA_SSH_DIR}x != x ] ; then
          rm -rf ${OCTAVIA_SSH_DIR}
     fi
@@ -406,6 +460,12 @@ function octavia_cleanup {
         if [ ${OCTAVIA_AMP_SSH_KEY_NAME}x != x ] ; then
             openstack keypair delete ${OCTAVIA_AMP_SSH_KEY_NAME}
         fi
+    fi
+    if [ ${OCTAVIA_DISTRIBUTOR_SSH_KEY_PATH}x != x ] ; then
+        rm -f ${OCTAVIA_DISTRIBUTOR_SSH_KEY_PATH} ${OCTAVIA_DISTRIBUTOR_SSH_KEY_PATH}.pub
+    fi
+    if [ ${OCTAVIA_DISTRIBUTOR_SSH_KEY_NAME}x != x ] ; then
+         nova keypair-delete ${OCTAVIA_DISTRIBUTOR_SSH_KEY_NAME}
     fi
 
     sudo rm -rf $NOVA_STATE_PATH $NOVA_AUTH_CACHE_DIR
@@ -425,11 +485,30 @@ if is_service_enabled $OCTAVIA; then
             die "The neutron $Q_SVC service must be enabled to use $OCTAVIA"
         fi
 
+        # Check if an amphora image is already loaded
+        AMPHORA_IMAGE_NAME=$(glance image-list | awk '/ amphora-x64-haproxy / {print $4}')
+        export AMPHORA_IMAGE_NAME
+
+        DISTRIBUTOR_IMAGE_NAME=$(glance image-list | awk '/ distributor / {print $4}')
+        export DISTRIBUTOR_IMAGE_NAME
+
         if [ "$DISABLE_AMP_IMAGE_BUILD" == 'True' ]; then
-            echo "Found DISABLE_AMP_IMAGE_BUILD == True"
-            echo "Skipping amphora image build"
+           echo "Found DISABLE_AMP_IMAGE_BUILD == True"
+           echo "Skipping amphora image build"
         fi
 
+    fi
+
+    if [ "$DISABLE_DISTRIBUTOR_IMAGE_BUILD" == 'True' ]; then
+        echo "Found DISABLE_DISTRIBUTOR_IMAGE_BUILD == True"
+        echo "Skipping distributor image build"
+    fi
+
+    if [ "$DISTRIBUTOR_IMAGE_NAME" == 'distributor' ]; then
+        echo "Found existing amphora image: $DISTRIBUTOR_IMAGE_NAME"
+        echo "Skipping distributor image build"
+        DISABLE_DISTRIBUTOR_IMAGE_BUILD=True
+        export DISABLE_DISTRIBUTOR_IMAGE_BUILD
     fi
 
     if [[ "$1" == "stack" && "$2" == "install" ]]; then

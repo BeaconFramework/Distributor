@@ -207,6 +207,37 @@ distributor_opts = [
                 help=_("The port to bind to")),
 ]
 
+active_active_cluster_opts = [
+    cfg.IntOpt('cluster_size',
+               default=2,
+               help=_('The number of active amphorae in the cluster.')),
+    cfg.BoolOpt('is_shared_distributor',
+                default=True,
+                help=_('Defines shared or dedicated per VIP L2-level '
+                       'traffic distributor node.')),
+    cfg.StrOpt('distributor_flavor_id',
+               default='',
+               help=_('Nova instance flavor id for the Distributor')),
+    cfg.StrOpt('distributor_image_tag',
+               default='',
+               help=_('Glance image tag for the Amphora image to boot. '
+                      'Use this option to be able to update the image '
+                      'without reconfiguring Octavia. '
+                      'Ignored if amp_image_id is defined.')),
+    cfg.StrOpt('distributor_image_id',
+               default='',
+               deprecated_for_removal=True,
+               deprecated_reason='Superseded by distributor_image_id option.',
+               help=_('Glance image id for the Distributor image to boot')),
+    cfg.StrOpt('distributor_image_owner_id',
+               default='',
+               help=_('Restrict glance image selection to a specific '
+                      'owner ID.  This is a recommended security setting.')),
+    cfg.StrOpt('distributor_driver',
+               default='distributor_noop_driver',
+               help=_('Name of the distributor driver to use')),
+]
+
 controller_worker_opts = [
     cfg.IntOpt('amp_active_retries',
                default=10,
@@ -257,6 +288,9 @@ controller_worker_opts = [
     cfg.StrOpt('compute_driver',
                default='compute_noop_driver',
                help=_('Name of the compute driver to use')),
+    cfg.StrOpt('amphora_cluster_driver',
+               default='amphora_cluster_active_active_driver',
+               help=_('Name of the amphora cluster_manager driver to use')),
     cfg.StrOpt('network_driver',
                default='network_noop_driver',
                help=_('Name of the network driver to use')),
@@ -464,6 +498,8 @@ quota_opts = [
 cfg.CONF.register_opts(core_opts)
 cfg.CONF.register_opts(amphora_agent_opts, group='amphora_agent')
 cfg.CONF.register_opts(distributor_opts, group='distributor')
+cfg.CONF.register_opts(active_active_cluster_opts,
+                       group='active_active_cluster')
 cfg.CONF.register_opts(networking_opts, group='networking')
 cfg.CONF.register_opts(oslo_messaging_opts, group='oslo_messaging')
 cfg.CONF.register_opts(haproxy_amphora_opts, group='haproxy_amphora')

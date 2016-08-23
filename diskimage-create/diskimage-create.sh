@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -xf
 #
 # Copyright 2014 Hewlett-Packard Development Company, L.P.
 #
@@ -21,9 +21,10 @@ usage() {
     echo
     echo "Usage: $(basename $0)"
     echo "            [-a i386 | **amd64** | armhf ]"
-    echo "            [-b **haproxy** ]"
+    echo "            [-b **haproxy** | **openvswitch** ]"
     echo "            [-c **~/.cache/image-create** | <cache directory> ]"
     echo "            [-d **xenial** | trusty | <other release id> ]"
+    echo "            [-p **amphora** | **distributor** ]"
     echo "            [-h]"
     echo "            [-i **ubuntu** | fedora | centos | rhel ]"
     echo "            [-o **amphora-x64-haproxy** | <filename> ]"
@@ -46,6 +47,7 @@ usage() {
     echo "        '-v' display the script version"
     echo "        '-w' working directory for image building (default: .)"
     echo "        '-x' enable tracing for diskimage-builder"
+    echo "        '-p' purpose of the image - distributor or amphora (default: amphora)"
     echo
     exit 1
 }
@@ -74,7 +76,7 @@ if [ -z $OCTAVIA_REPO_PATH ]; then
 fi
 dib_enable_tracing=
 
-while getopts "a:b:c:d:hi:o:t:r:s:vw:x" opt; do
+while getopts "a:b:c:d:hi:o:t:r:s:p:vw:x" opt; do
     case $opt in
         a)
             AMP_ARCH=$OPTARG
@@ -86,10 +88,10 @@ while getopts "a:b:c:d:hi:o:t:r:s:vw:x" opt; do
             fi
         ;;
         b)
-            if [ $OPTARG == "haproxy" ]; then
+            if [ $OPTARG == "haproxy" ] || [ $OPTARG == "openvswitch" ]; then
                 AMP_BACKEND=$OPTARG-octavia
             else
-                echo "Error: Unsupported backend type " $AMP_BACKEND " specified"
+                echo "Error: Unsupported at all backend type " $AMP_BACKEND " specified"
                 exit 3
             fi
         ;;
@@ -98,6 +100,16 @@ while getopts "a:b:c:d:hi:o:t:r:s:vw:x" opt; do
         ;;
         d)
             AMP_DIB_RELEASE=$OPTARG
+        ;;
+        p)
+            if [ $OPTARG == "distributor" ]; then
+                IS_DISTRIBUTOR=true
+            elif [ $OPTARG == "amphora" ]; then
+                IS_DISTRIBUTOR=false
+            else
+                echo "Error: Unsupported purpose of the image " $OPTARG " specified"
+                exit 3
+            fi
         ;;
         h)
             usage
@@ -113,7 +125,7 @@ while getopts "a:b:c:d:hi:o:t:r:s:vw:x" opt; do
             fi
         ;;
         o)
-            AMP_OUTPUTFILENAME=$(readlink -f $OPTARG)
+            AMP_OUTPUTFILENAME=$OPTARG
         ;;
         t)
             AMP_IMAGETYPE=$OPTARG
@@ -153,10 +165,23 @@ if [ "$1" ]; then
     usage
 fi
 
+if  $IS_DISTRIBUTOR ; then
+    if [ $AMP_BACKEND ] &&
+       [ $AMP_BACKEND != "openvswitch-octavia" ]; then
+           echo "Error: Unsupported backend type " $AMP_BACKEND " for distributor is specified"
+           exit 3
+    fi
+else
+    if [ $AMP_BACKEND ]; then
+           if [ $AMP_BACKEND != "haproxy-octavia" ]; then
+               echo "Error: Unsupported backend type " $AMP_BACKEND " for amphora is specified"
+               exit 3
+           fi
+    fi
+fi
+
 # Set the Octavia Amphora defaults if they aren't already set
 AMP_ARCH=${AMP_ARCH:-"amd64"}
-
-AMP_BACKEND=${AMP_BACKEND:-"haproxy-octavia"}
 
 AMP_CACHEDIR=${AMP_CACHEDIR:-"$HOME/.cache/image-create"}
 
@@ -168,7 +193,13 @@ else
     export DIB_RELEASE=${AMP_DIB_RELEASE}
 fi
 
-AMP_OUTPUTFILENAME=${AMP_OUTPUTFILENAME:-"$PWD/amphora-x64-haproxy"}
+if  $IS_DISTRIBUTOR ; then
+    AMP_BACKEND=${AMP_BACKEND:-"openvswitch-octavia"}
+    AMP_OUTPUTFILENAME=${AMP_OUTPUTFILENAME:-"$AMP_DIR/distributor"}
+else
+    AMP_BACKEND=${AMP_BACKEND:-"haproxy-octavia"}
+    AMP_OUTPUTFILENAME=${AMP_OUTPUTFILENAME:-"$AMP_DIR/amphora-x64-haproxy"}
+fi
 
 AMP_IMAGETYPE=${AMP_IMAGETYPE:-"qcow2"}
 
@@ -327,7 +358,11 @@ pushd $TEMP > /dev/null
 
 if [ "$AMP_BASEOS" = "ubuntu" ]; then
     AMP_element_sequence=${AMP_element_sequence:-"base vm ubuntu"}
-    AMP_element_sequence="$AMP_element_sequence $AMP_BACKEND-ubuntu"
+    if  $IS_DISTRIBUTOR ; then
+        AMP_element_sequence="$AMP_element_sequence $AMP_BACKEND"
+    else
+        AMP_element_sequence="$AMP_element_sequence $AMP_BACKEND-ubuntu"
+    fi
     if [ "$BASE_OS_MIRROR" ]; then
         AMP_element_sequence="$AMP_element_sequence apt-mirror"
         export UBUNTU_MIRROR="$BASE_OS_MIRROR"
@@ -356,16 +391,23 @@ if [ "$AMP_ROOTPW" ]; then
     export DIB_PASSWORD=$AMP_ROOTPW
 fi
 
-# Add the Octavia keepalived, Amphora Agent and Pyroute elements
-if [ "$AMP_BASEOS" = "ubuntu" ]; then
+if  $IS_DISTRIBUTOR ; then
+    # Add the Octavia Distributor agent.py element
+    AMP_element_sequence="$AMP_element_sequence distributor-agent"
     AMP_element_sequence="$AMP_element_sequence rebind-sshd"
     AMP_element_sequence="$AMP_element_sequence no-resolvconf"
-    AMP_element_sequence="$AMP_element_sequence amphora-agent-ubuntu"
-    AMP_element_sequence="$AMP_element_sequence keepalived-octavia-ubuntu"
 else
-    AMP_element_sequence="$AMP_element_sequence no-resolvconf"
-    AMP_element_sequence="$AMP_element_sequence amphora-agent"
-    AMP_element_sequence="$AMP_element_sequence keepalived-octavia"
+    # Add the Octavia keepalived, Amphora Agent and Pyroute elements
+    if [ "$AMP_BASEOS" = "ubuntu" ]; then
+        AMP_element_sequence="$AMP_element_sequence rebind-sshd"
+        AMP_element_sequence="$AMP_element_sequence no-resolvconf"
+        AMP_element_sequence="$AMP_element_sequence amphora-agent-ubuntu"
+        AMP_element_sequence="$AMP_element_sequence keepalived-octavia-ubuntu"
+    else
+        AMP_element_sequence="$AMP_element_sequence no-resolvconf"
+        AMP_element_sequence="$AMP_element_sequence amphora-agent"
+        AMP_element_sequence="$AMP_element_sequence keepalived-octavia"
+    fi
 fi
 
 # Add pip-cache element

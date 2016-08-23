@@ -213,6 +213,11 @@ UPDATE_L7RULE_FLOW = 'octavia-update-l7rule-flow'
 
 POST_MAP_AMP_TO_LB_SUBFLOW = 'octavia-post-map-amp-to-lb-subflow'
 CREATE_AMP_FOR_LB_SUBFLOW = 'octavia-create-amp-for-lb-subflow'
+CREATE_AMP_CLUSTER_FOR_LB_SUBFLOW = (
+    'octavia-create-amp-cluster_manager-for-lb-subflow')
+CREATE_AMP_CLUSTER_MANAGER = (
+    'octavia-create-amp-cluster-manager'
+)
 GET_AMPHORA_FOR_LB_SUBFLOW = 'octavia-get-amphora-for-lb-subflow'
 POST_LB_AMP_ASSOCIATION_SUBFLOW = (
     'octavia-post-loadbalancer-amp_association-subflow')
@@ -265,11 +270,13 @@ RPC_NAMESPACE_CONTROLLER_AGENT = 'controller'
 # Active standalone roles and topology
 TOPOLOGY_SINGLE = 'SINGLE'
 TOPOLOGY_ACTIVE_STANDBY = 'ACTIVE_STANDBY'
+TOPOLOGY_CLUSTER = 'CLUSTER'
 ROLE_MASTER = 'MASTER'
 ROLE_BACKUP = 'BACKUP'
 ROLE_STANDALONE = 'STANDALONE'
 
-SUPPORTED_LB_TOPOLOGIES = (TOPOLOGY_ACTIVE_STANDBY, TOPOLOGY_SINGLE)
+SUPPORTED_LB_TOPOLOGIES = (TOPOLOGY_ACTIVE_STANDBY, TOPOLOGY_SINGLE,
+                           TOPOLOGY_CLUSTER)
 SUPPORTED_AMPHORA_ROLES = (ROLE_BACKUP, ROLE_MASTER, ROLE_STANDALONE)
 
 TOPOLOGY_STATUS_OK = 'OK'

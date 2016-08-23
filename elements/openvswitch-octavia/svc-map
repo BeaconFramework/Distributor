@@ -1,0 +1,2 @@
+openvswitch-octavia:
+  default: openvswitch-octavia
