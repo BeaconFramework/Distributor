@@ -37,6 +37,7 @@ class TestDistributorNoopDriver(base.TestCase):
         self.distributor.id = self.FAKE_UUID_2
         self.cluster_alg_type = "TEST"
         self.cluster_min_size = 0
+        self.cluster_slot = 0
 
     def test_get_info(self):
         self.driver.get_info(self.distributor)
@@ -55,36 +56,33 @@ class TestDistributorNoopDriver(base.TestCase):
                                      self.load_balancer,
                                      self.amphora,
                                      self.cluster_alg_type,
-                                     self.cluster_min_size)
+                                     self.cluster_slot)
         self.assertEqual((self.amphora.id, self.distributor.id,
                           self.load_balancer.id,
                           self.cluster_alg_type,
-                          self.cluster_min_size,
+                          self.cluster_slot,
                           'register_amphora'),
                          self.driver.driver.distributor_config[(
                              self.amphora.id,
                              self.distributor.id,
                              self.load_balancer.id,
                              self.cluster_alg_type,
-                             self.cluster_min_size)])
+                             self.cluster_slot)])
 
     def test_unregister_amphora(self):
         self.driver.unregister_amphora(self.distributor,
                                        self.load_balancer,
                                        self.amphora,
-                                       self.cluster_alg_type,
-                                       self.cluster_min_size)
+                                       self.cluster_alg_type)
         self.assertEqual((self.amphora.id, self.distributor.id,
                           self.load_balancer.id,
                           self.cluster_alg_type,
-                          self.cluster_min_size,
                           'unregister_amphora'),
                          self.driver.driver.distributor_config[(
                              self.amphora.id,
                              self.distributor.id,
                              self.load_balancer.id,
-                             self.cluster_alg_type,
-                             self.cluster_min_size)])
+                             self.cluster_alg_type)])
 
     def test_post_vip_plug(self):
         self.driver.post_vip_plug(self.distributor, self.load_balancer,

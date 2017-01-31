@@ -212,6 +212,113 @@ class UpdateHealthDb(object):
                 LOG.error(_LE("Load balancer %s is not in DB"), lb_id)
 
 
+class UpdateDistributorHealthDb(object):
+    def __init__(self):
+        super(UpdateDistributorHealthDb, self).__init__()
+        self.event_streamer = stevedore_driver.DriverManager(
+            namespace='octavia.controller.queues',
+            name=cfg.CONF.health_manager.event_streamer_driver,
+            invoke_on_load=True).driver
+        self.loadbalancer_repo = repo.LoadBalancerRepository()
+        self.distributor_repo = repo.DistributorRepository()
+
+    def emit(self, info_type, info_id, info_obj):
+        cnt = update_serializer.InfoContainer(info_type, info_id, info_obj)
+        self.event_streamer.emit(cnt)
+
+    def update_distributor_health(self, health):
+        """This function is to update db info based on amphora status
+
+        :type health: dict
+        :param health: map object that contains distributor, amphora info
+
+        The input health data structure is shown as below:
+
+        health = {
+            "distributor-id": self.FAKE_UUID_1,
+            "provisioning-state": {
+                "state": service provisioning status,
+                "reason": str
+            }
+            "loadbalancers": {
+                "lb-id-1": {
+                    "status": instance provisioning status
+                    "size": int
+                    "registered": int
+                }
+            }
+        }
+
+        """
+        session = db_api.get_session()
+        distributor_id = health['distributor_id']
+        distributor_state = health['provisioning_state']['state']
+        if distributor_state == constants.DISTRIBUTOR_BOOTING:
+            LOG.debug("Distributor %s is still booting -- skipping"
+                      " health message.", distributor_id)
+            # nothing to report
+            return
+        elif distributor_state == constants.DISTRIBUTOR_FULL:
+            # @TODO handle FULL state -- eg, set quota limit
+            LOG.warning(_LW("Distributor %s is unavailable for new"
+                            " requests."),
+                        distributor_id)
+        elif distributor_state == constants.DISTRIBUTOR_ERROR:
+            LOG.warning(_LW("Distributor %s is in error state"),
+                        distributor_id)
+            # @TODO set state of distributor so it is recycled
+
+        expected_lbs = self.distributor_repo.get_all_lbs_on_distributor(
+            session, distributor_id)
+        reported_lbs = health.get('loadbalancers', {})
+
+        if any(lb not in expected_lbs for lb in reported_lbs):
+            LOG.warning(_LW("Distributor %s reported unexpected"
+                            " loadbalancer ids"), distributor_id)
+            # @TODO something is wrong here we should recycle
+
+        # NO_MONITOR for all missing lbs
+        reported_lbs.update(
+            (lb, {'status': constants.NO_MONITOR})
+            for lb in expected_lbs if lb not in reported_lbs)
+
+        # do actual update per lb
+        for lb_id, lb in six.iteritems(reported_lbs):
+            try:
+                lb_in_db = self.loadbalancer_repo.get(session, id=lb_id)
+            except sqlalchemy.orm.exc.NoResultFound:
+                LOG.error(_LE("Load balancer %s is not in DB"), lb_id)
+                continue
+
+            reported_lb_op_status = lb['status']
+            if (reported_lb_op_status == constants.ERROR or
+                    distributor_state == constants.DISTRIBUTOR_ERROR):
+                # Distributor error currently sets all LBs to error too.
+                # This is conservative. Could try to recycle Distributor
+                # without recycling the LBs
+                new_lb_op_status = constants.ERROR
+            elif (reported_lb_op_status == constants.DEGRADED and
+                    lb_in_db.operating_status == constants.ONLINE):
+                new_lb_op_status = constants.DEGRADED
+            elif (reported_lb_op_status == constants.NO_MONITOR and
+                  lb_in_db.operating_status == constants.ONLINE):
+                # @TODO Ignoring for now. Should we do anything here?
+                new_lb_op_status = None
+            else:
+                new_lb_op_status = None
+            # @TODO verify size and registered
+            if new_lb_op_status:
+                LOG.debug("%s %s status has changed from %s to "
+                          "%s. Updating db and sending event.",
+                          constants.LOADBALANCER, lb_id,
+                          lb_in_db.operating_status,
+                          new_lb_op_status)
+                self.loadbalancer_repo.update(
+                    session, lb_id, operating_status=new_lb_op_status)
+                self.emit(constants.LOADBALANCER, lb_id,
+                          {constants.OPERATING_STATUS: new_lb_op_status})
+
+
 class UpdateStatsDb(stats.StatsMixin):
 
     def __init__(self):

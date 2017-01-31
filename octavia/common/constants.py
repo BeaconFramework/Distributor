@@ -430,12 +430,14 @@ DISTRIBUTOR_PENDING_DELETE = 'DISTRIBUTOR_PENDING_DELETE'
 DISTRIBUTOR_PENDING_UPDATE = 'DISTRIBUTOR_PENDING_UPDATE'
 DISTRIBUTOR_PENDING_CREATE = 'DISTRIBUTOR_PENDING_CREATE'
 DISTRIBUTOR_DELETED = 'DISTRIBUTOR_DELETED'
+DISTRIBUTOR_FULL = 'FULL'
 DISTRIBUTOR_ERROR = 'DISTRIBUTOR_ERROR'
 SUPPORTED_DISTRIBUTOR_PROVISIONING_STATUSES = (DISTRIBUTOR_ACTIVE,
                                                DISTRIBUTOR_ALLOCATED,
                                                DISTRIBUTOR_BOOTING,
                                                DISTRIBUTOR_READY,
                                                DISTRIBUTOR_DELETED,
+                                               DISTRIBUTOR_FULL,
                                                DISTRIBUTOR_ERROR,
                                                DISTRIBUTOR_PENDING_CREATE,
                                                DISTRIBUTOR_PENDING_DELETE,
@@ -446,5 +448,6 @@ SUPPORTED_DISTRIBUTOR_STATUSES = (DISTRIBUTOR_ALLOCATED, DISTRIBUTOR_BOOTING,
                                   DISTRIBUTOR_PENDING_DELETE)
 CLUSTER_ALG_TYPE = 'cluster_alg_type'
 CLUSTER_MIN_SIZE = 'cluster_min_size'
+CLUSTER_SLOT = 'cluster_slot'
 ADD_CLUSTER_ALG_EXTRA = (
     'octavia-create-amp-cluster-alg-extra')

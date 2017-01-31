@@ -91,7 +91,7 @@ class OVSDistributorDriver(driver_base.DistributorDriver):
             raise
 
     def register_amphora(self, distributor, load_balancer, amphora,
-                         cluster_alg_type, cluster_min_size):
+                         cluster_alg_type, cluster_slot=None):
         subnet = self.network_driver.get_subnet(load_balancer.vip.subnet_id)
         amphora_mac = self.network_driver.get_port(
             amphora.vrrp_port_id).mac_address
@@ -101,7 +101,7 @@ class OVSDistributorDriver(driver_base.DistributorDriver):
                   'amphora_id': amphora.id,
                   'amphora_mac': amphora_mac,
                   'cluster_alg_type': cluster_alg_type,
-                  'cluster_min_size': cluster_min_size}
+                  'cluster_slot': cluster_slot}
         LOG.debug("OVS_DRIVER / REST / register_amphora with json: [%s]",
                   repr(extras))
         try:
@@ -114,14 +114,13 @@ class OVSDistributorDriver(driver_base.DistributorDriver):
             raise
 
     def unregister_amphora(self, distributor, load_balancer, amphora,
-                           cluster_alg_type, cluster_min_size):
+                           cluster_alg_type):
         subnet = self.network_driver.get_subnet(load_balancer.vip.subnet_id)
         extras = {'subnet_cidr': subnet.cidr,
                   'gateway': subnet.gateway_ip,
                   'lb_id': load_balancer.id,
                   'amphora_id': amphora.id,
-                  'cluster_alg_type': cluster_alg_type,
-                  'cluster_min_size': cluster_min_size}
+                  'cluster_alg_type': cluster_alg_type}
         LOG.debug("OVS_DRIVER / REST / unregister_amphora with json: [%s]",
                   repr(extras))
         try:

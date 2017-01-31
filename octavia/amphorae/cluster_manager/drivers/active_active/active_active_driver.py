@@ -169,11 +169,6 @@ class ActiveActiveManager(base_taskflow.BaseTaskFlowEngine):
                 provides=constants.LISTENERS))
         new_amphora_net_subflow.add(amphora_driver_tasks.ListenersUpdate(
             requires=(constants.LISTENERS)))
-        # we dont need to update listeners here!!!!
-        new_amphora_net_subflow.add(CreateAmphoraClusterAlgExtraTask(
-            name=constants.ADD_CLUSTER_ALG_EXTRA,
-            provides=(constants.CLUSTER_ALG_TYPE, constants.CLUSTER_MIN_SIZE)
-        ))
 
         for amphoraCount in range(self._cluster_size):
             sf_name = 'FINALIZE_AMP_' + str(amphoraCount)
@@ -205,9 +200,9 @@ class ActiveActiveManager(base_taskflow.BaseTaskFlowEngine):
                     name=sf_name + '-' + constants.DISTRIBUTOR_REGISTER_AMP,
                     requires=(constants.DISTRIBUTOR,
                               constants.LOADBALANCER,
-                              constants.AMPHORA,
-                              constants.CLUSTER_ALG_TYPE,
-                              constants.CLUSTER_MIN_SIZE)))
+                              constants.AMPHORA),
+                    inject={constants.CLUSTER_ALG_TYPE:'active_active',
+                            constants.CLUSTER_SLOT: amphoraCount}))
             new_amphora_net_subflow.add(finalize_amp_for_lb_subflow)
 
         return new_amphora_net_subflow

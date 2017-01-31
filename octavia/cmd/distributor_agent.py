@@ -12,6 +12,9 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
+import logging
+import multiprocessing as multiproc
+
 import sys
 
 import gunicorn.app.base
@@ -19,12 +22,18 @@ from oslo_config import cfg
 from oslo_reports import guru_meditation_report as gmr
 import six
 
+from octavia.distributor.backend.agent.api_server import server
+from octavia.distributor.backend.health_daemon import health_daemon
 from octavia.common import service
 from octavia.common import utils
-from octavia.distributor.backend.agent.api_server import server
 from octavia import version
 
+LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
+CONF.import_group('distributor', 'octavia.common.config')
+CONF.import_group('haproxy_amphora', 'octavia.common.config')
+CONF.import_group('amphora_agent', 'octavia.common.config')
+HM_SENDER_CMD_QUEUE = multiproc.Queue()
 
 
 class DistributorAgent(gunicorn.app.base.BaseApplication):
@@ -50,12 +59,18 @@ def main():
     service.prepare_service(sys.argv)
 
     gmr.TextGuruMeditation.setup_autorun(version)
+    health_sender_proc = multiproc.Process(name='HM_sender',
+                                           target=health_daemon.run_sender,
+                                           args=(HM_SENDER_CMD_QUEUE,))
+    health_sender_proc.daemon = True
+    health_sender_proc.start()
 
     # Initiate server class
     server_instance = server.Server()
 
     bind_ip_port = utils.ip_port_str(CONF.haproxy_amphora.bind_host,
                                      CONF.distributor.bind_port)
+
     options = {
         'bind': bind_ip_port,
         'workers': 1,
@@ -64,8 +79,9 @@ def main():
         'ca_certs': CONF.amphora_agent.agent_server_ca,
         'cert_reqs': True,
         'preload_app': True,
-        'accesslog': '-',
-        'errorlog': '-',
+        'accesslog': '/var/log/distributor-agent.log',
+        'errorlog': '/var/log/distributor-agent.log',
         'loglevel': 'debug',
     }
+
     DistributorAgent(server_instance.app, options).run()

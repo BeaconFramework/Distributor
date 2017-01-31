@@ -1039,6 +1039,23 @@ class DistributorRepository(BaseRepository):
                 return None
             return distributor.to_data_model()
 
+    def get_all_lbs_on_distributor(self, session, distributor_id):
+        """Get all of the load balancers on a Distributor.
+
+        :param session: A Sql Alchemy database session.
+        :param distributor_id: The Distributor id to list the load
+         balancers from
+        :returns: [octavia.common.data_model]
+        """
+        with session.begin(subtransactions=True):
+            lb_subquery = (
+                session.query(models.AmphoraCluster.load_balancer_id).
+                    filter_by(distributor_id=distributor_id).subquery())
+            lb_list = (session.query(models.LoadBalancer).
+                       filter(models.LoadBalancer.id.in_(lb_subquery)).all())
+            data_model_list = [model.to_data_model() for model in lb_list]
+            return data_model_list
+
 
 class AmphoraClusterRepository(BaseRepository):
     model_class = models.AmphoraCluster

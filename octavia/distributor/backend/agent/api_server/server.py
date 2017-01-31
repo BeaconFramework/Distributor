@@ -129,7 +129,7 @@ class Server(object):
             assert 'amphora_id' in net_info
             assert 'amphora_mac' in net_info
             assert 'cluster_alg_type' in net_info
-            assert 'cluster_min_size' in net_info
+            # assert 'cluster_slot' in net_info - optional
         except Exception:
             raise exceptions.BadRequest(description='Invalid subnet information')
         return plug.register_amphora(vip,
@@ -139,7 +139,7 @@ class Server(object):
                                      net_info['amphora_id'],
                                      net_info['amphora_mac'],
                                      net_info['cluster_alg_type'],
-                                     net_info['cluster_min_size'])
+                                     net_info['cluster_slot'])
 
     def unregister_amphora(self, vip):
         # Catch any issues with the subnet info json
@@ -151,7 +151,6 @@ class Server(object):
             assert 'lb_id' in net_info
             assert 'amphora_id' in net_info
             assert 'cluster_alg_type' in net_info
-            assert 'cluster_min_size' in net_info
         except Exception:
             raise exceptions.BadRequest(description='Invalid subnet information')
         return plug.unregister_amphora(vip,
@@ -159,5 +158,4 @@ class Server(object):
                                        net_info['subnet_cidr'],
                                        net_info['gateway'],
                                        net_info['amphora_id'],
-                                       net_info['cluster_alg_type'],
-                                       net_info['cluster_min_size'])
+                                       net_info['cluster_alg_type'])

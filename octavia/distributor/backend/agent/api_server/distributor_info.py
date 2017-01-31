@@ -72,9 +72,9 @@ def _get_version_of_installed_package(name):
     return m.group(0)[len('Version: '):]
 
 
-def _get_network_bytes(interface, type):
+def _get_network_bytes(interface, byte_type):
     file_name = "/sys/class/net/{interface}/statistics/{type}_bytes".format(
-        interface=interface, type=type)
+        interface=interface, type=byte_type)
     with open(file_name, 'r') as f:
         return f.readline()
 

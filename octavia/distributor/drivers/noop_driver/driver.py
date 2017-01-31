@@ -36,33 +36,31 @@ class NoopManager(object):
                                                    'get_diagnostics')
 
     def register_amphora(self, distributor, load_balancer, amphora,
-                         cluster_alg_type, cluster_min_size):
+                         cluster_alg_type, cluster_slot=None):
         LOG.debug("distributor %s no-op, register amphora %s with LB %s",
                   self.__class__.__name__, amphora.id, load_balancer.id)
         self.distributor_config[(amphora.id,
                                  distributor.id,
                                  load_balancer.id,
                                  cluster_alg_type,
-                                 cluster_min_size)] = (amphora.id,
+                                 cluster_slot)] = (amphora.id,
                                                        distributor.id,
                                                        load_balancer.id,
                                                        cluster_alg_type,
-                                                       cluster_min_size,
+                                                       cluster_slot,
                                                        'register_amphora')
 
     def unregister_amphora(self, distributor, load_balancer, amphora,
-                           cluster_alg_type, cluster_min_size):
+                           cluster_alg_type):
         LOG.debug("distributor %s no-op, unregister amphora %s, LB:%s",
                   self.__class__.__name__, amphora.id, load_balancer.id)
         self.distributor_config[(amphora.id,
                                  distributor.id,
                                  load_balancer.id,
-                                 cluster_alg_type,
-                                 cluster_min_size)] = (amphora.id,
+                                 cluster_alg_type)] = (amphora.id,
                                                        distributor.id,
                                                        load_balancer.id,
                                                        cluster_alg_type,
-                                                       cluster_min_size,
                                                        'unregister_amphora')
 
     def post_vip_plug(self, distributor, load_balancer, distributor_mac,
@@ -101,20 +99,19 @@ class NoopDistributorDriver(driver_base.DistributorDriver):
         self.driver.get_diagnostics(distributor)
 
     def register_amphora(self, distributor, load_balancer, amphora,
-                         cluster_alg_type, cluster_min_size):
+                         cluster_alg_type, cluster_slot=None):
         self.driver.register_amphora(distributor,
                                      load_balancer,
                                      amphora,
                                      cluster_alg_type,
-                                     cluster_min_size)
+                                     cluster_slot)
 
     def unregister_amphora(self, distributor, load_balancer, amphora,
-                           cluster_alg_type, cluster_min_size):
+                           cluster_alg_type):
         self.driver.unregister_amphora(distributor,
                                        load_balancer,
                                        amphora,
-                                       cluster_alg_type,
-                                       cluster_min_size)
+                                       cluster_alg_type)
 
     def post_vip_plug(self, distributor, load_balancer, distributor_mac,
                       cluster_alg_type, cluster_min_size):

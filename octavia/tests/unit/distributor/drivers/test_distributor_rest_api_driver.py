@@ -58,6 +58,7 @@ class TestOVSDistributorDriverTest(base.TestCase):
                                             gateway_ip=FAKE_GATEWAY)
         self.cluster_alg_type = "TEST"
         self.cluster_min_size = 0
+        self.cluster_slot = 0
 
     def get_subnet(self, subnet_id):
         return self.subnet
@@ -102,10 +103,10 @@ class TestOVSDistributorDriverTest(base.TestCase):
                   'amphora_id': self.amp.id,
                   'amphora_mac': self.port.mac_address,
                   'cluster_alg_type': self.cluster_alg_type,
-                  'cluster_min_size': self.cluster_min_size}
+                  'cluster_slot': self.cluster_slot}
         self.driver.register_amphora(self.distributor, self.lb,
                                      self.amp, self.cluster_alg_type,
-                                     self.cluster_min_size)
+                                     self.cluster_slot)
         self.driver.client.register_amphora.assert_called_once_with(
             self.distributor, self.lb.vip.ip_address, extras)
 
@@ -114,11 +115,9 @@ class TestOVSDistributorDriverTest(base.TestCase):
                   'gateway': self.subnet.gateway_ip,
                   'lb_id': self.lb.id,
                   'amphora_id': self.amp.id,
-                  'cluster_alg_type': self.cluster_alg_type,
-                  'cluster_min_size': self.cluster_min_size}
+                  'cluster_alg_type': self.cluster_alg_type}
         self.driver.unregister_amphora(self.distributor, self.lb,
-                                       self.amp, self.cluster_alg_type,
-                                       self.cluster_min_size)
+                                       self.amp, self.cluster_alg_type)
         self.driver.client.unregister_amphora.assert_called_once_with(
             self.distributor, self.lb.vip.ip_address, extras)
 

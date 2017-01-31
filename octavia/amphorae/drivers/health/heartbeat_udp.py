@@ -34,9 +34,10 @@ class UDPStatusGetter(object):
     The heartbeats are transmitted via UDP and this class will bind to a port
     and absorb them
     """
-    def __init__(self, health_update, stats_update):
+    def __init__(self, health_update, stats_update, distributor_update):
         self.stats_update = stats_update
         self.health_update = health_update
+        self.distributo_update = distributor_update
         self.key = cfg.CONF.health_manager.heartbeat_key
         self.ip = cfg.CONF.health_manager.bind_ip
         self.port = cfg.CONF.health_manager.bind_port
@@ -171,6 +172,11 @@ class UDPStatusGetter(object):
     def check(self):
         try:
             (obj, _) = self.dorecv()
+            if self.distributo_update and 'distributor_id' in obj:
+                self.executor.submit(
+                    self.distributo_update.update_distributor_health,
+                    obj)
+                return
             if self.health_update:
                 self.executor.submit(self.health_update.update_health, obj)
             if self.stats_update:
